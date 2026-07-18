@@ -1,0 +1,32 @@
+import { config as loadEnv } from 'dotenv';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
+
+const here = dirname(fileURLToPath(import.meta.url));
+for (const p of [resolve(here, '../../../.env'), resolve(process.cwd(), '.env')]) {
+  if (existsSync(p)) loadEnv({ path: p });
+}
+
+const envSchema = z.object({
+  S3_ENDPOINT: z.string().url(),
+  S3_REGION: z.string().default('us-east-1'),
+  S3_ACCESS_KEY_ID: z.string().min(1),
+  S3_SECRET_ACCESS_KEY: z.string().min(1),
+  S3_BUCKET: z.string().min(1),
+  S3_FORCE_PATH_STYLE: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
+  FACE_SERVICE_URL: z.string().url().default('http://localhost:8000'),
+  WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
+});
+
+const parsed = envSchema.safeParse(process.env);
+if (!parsed.success) {
+  console.error('Invalid worker environment:', parsed.error.flatten().fieldErrors);
+  process.exit(1);
+}
+
+export const config = parsed.data;

@@ -1,0 +1,162 @@
+'use client';
+
+import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { api, ApiError, type GalleryPhoto, type SearchMatch } from '@/lib/api';
+import { SelfieCapture } from '@/components/SelfieCapture';
+import { GradientBlob, PillButton, Sparkle } from '@/components/ui';
+
+export default function AttendeeGalleryPage() {
+  const params = useParams<{ code: string }>();
+  const code = params.code;
+  const [token, setToken] = useState<string | null>(null);
+  const [eventName, setEventName] = useState('');
+  const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const [showCamera, setShowCamera] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [matches, setMatches] = useState<SearchMatch[] | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .attendeeSession(code)
+      .then(async ({ token, event }) => {
+        setToken(token);
+        setEventName(event.name);
+        const { photos } = await api.galleryPhotos(token);
+        setPhotos(photos);
+      })
+      .catch((err) =>
+        setError(err instanceof ApiError ? err.message : 'Could not load this event.'),
+      );
+  }, [code]);
+
+  async function onSelfie(blob: Blob) {
+    if (!token) return;
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const { matches } = await api.attendeeSearch(token, blob);
+      setMatches(matches);
+      setShowCamera(false);
+    } catch (err) {
+      setSearchError(err instanceof ApiError ? err.message : 'Search failed');
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  if (error) {
+    return (
+      <main className="grid min-h-screen place-items-center px-6 text-center">
+        <div>
+          <h1 className="text-h2 font-semibold">Event not found</h1>
+          <p className="mt-2 text-ink/60">{error}</p>
+        </div>
+      </main>
+    );
+  }
+
+  const showingResults = matches !== null;
+
+  return (
+    <main className="relative min-h-screen overflow-hidden pb-24">
+      <GradientBlob className="right-[-8%] top-[-5%] h-80 w-80" color="#F0997B" />
+      <GradientBlob className="left-[-8%] top-[20%] h-72 w-72" color="#8B6FD9" />
+
+      <header className="relative z-10 mx-auto max-w-6xl px-6 py-8">
+        <p className="text-sm text-ink/50">event gallery</p>
+        <h1 className="text-h1 lowercase">{eventName || 'Loading…'}</h1>
+      </header>
+
+      {showingResults ? (
+        <div className="relative z-10 mx-auto max-w-6xl px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">
+              {matches.length > 0
+                ? `We found ${matches.length} photo(s) of you`
+                : 'No matches found — try another selfie'}
+            </h2>
+            <div className="flex gap-3">
+              {matches.length > 0 && token && (
+                <PillButton
+                  variant="accent"
+                  onClick={() => api.downloadBatch(token, matches.map((m) => m.id))}
+                >
+                  Download all
+                </PillButton>
+              )}
+              <PillButton variant="secondary" onClick={() => setMatches(null)}>
+                Back to gallery
+              </PillButton>
+            </div>
+          </div>
+          <PhotoGrid items={matches} token={token} />
+        </div>
+      ) : (
+        <div className="relative z-10 mx-auto max-w-6xl px-6">
+          <PhotoGrid items={photos} token={token} />
+          {photos.length === 0 && (
+            <p className="mt-6 text-ink/50">No processed photos yet — check back shortly.</p>
+          )}
+        </div>
+      )}
+
+      {/* Persistent "find my photos" action */}
+      {!showingResults && (
+        <div className="fixed inset-x-0 bottom-6 z-30 flex justify-center">
+          <PillButton
+            variant="accent"
+            onClick={() => setShowCamera(true)}
+            className="shadow-lift"
+            disabled={!token}
+          >
+            <Sparkle className="h-4 w-4" /> Find my photos
+          </PillButton>
+        </div>
+      )}
+
+      {searchError && (
+        <p className="fixed inset-x-0 bottom-20 z-30 text-center text-sm text-coral">{searchError}</p>
+      )}
+
+      {showCamera && (
+        <SelfieCapture onCapture={onSelfie} onClose={() => setShowCamera(false)} busy={searching} />
+      )}
+    </main>
+  );
+}
+
+function PhotoGrid({
+  items,
+  token,
+}: {
+  items: (GalleryPhoto | SearchMatch)[];
+  token: string | null;
+}) {
+  return (
+    <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+      {items.map((p) => (
+        <div key={p.id} className="group relative overflow-hidden rounded-card bg-panel shadow-lift">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={p.url}
+            alt={p.filename}
+            className="aspect-square w-full object-cover transition group-hover:scale-[1.03]"
+          />
+          {token && (
+            <button
+              onClick={() => api.downloadPhoto(token, p.id, p.filename)}
+              className="absolute right-2 top-2 rounded-full bg-ink/70 p-2 text-white opacity-0 transition group-hover:opacity-100"
+              aria-label="Download photo"
+            >
+              ↓
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}

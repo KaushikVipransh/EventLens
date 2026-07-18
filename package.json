@@ -1,0 +1,38 @@
+{
+  "name": "eventlens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Event photo retrieval platform (EventLens)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "npm run generate -w @eventlens/db",
+    "db:migrate": "npm run migrate -w @eventlens/db",
+    "db:seed": "npm run seed -w @eventlens/db",
+    "dev:api": "npm run dev -w @eventlens/api",
+    "dev:worker": "npm run dev -w @eventlens/worker",
+    "dev:web": "npm run dev -w @eventlens/web",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "e2e": "tsx scripts/e2e.mts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0"
+  }
+}
