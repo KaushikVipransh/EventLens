@@ -48,10 +48,28 @@ export default function EventDetailPage() {
     setName('');
   }
 
+  const navRight = (
+    <>
+      <Link href="/dashboard" className="text-sm font-medium hover:opacity-60" data-hover>
+        Dashboard
+      </Link>
+      <button
+        onClick={() => {
+          orgToken.clear();
+          router.replace('/login');
+        }}
+        className="text-sm font-medium text-ink/60 hover:text-ink"
+        data-hover
+      >
+        Log out
+      </button>
+    </>
+  );
+
   if (!event) {
     return (
       <main className="min-h-screen">
-        <Nav />
+        <Nav right={navRight} />
         <p className="mx-auto max-w-4xl px-6 py-8 text-ink/50">Loading…</p>
       </main>
     );
@@ -59,13 +77,13 @@ export default function EventDetailPage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden">
-      <GradientBlob className="left-[-8%] top-0 h-80 w-80" color="#6FA8E8" />
-      <Nav />
-      <div className="relative z-10 mx-auto max-w-4xl px-6 py-8">
-        <Link href="/dashboard" className="text-sm text-ink/60 hover:text-ink">
+      <Nav right={navRight} />
+      <GradientBlob className="left-[-8%] top-[10%] h-80 w-80" color="#6FA8E8" />
+      <div className="relative z-10 mx-auto max-w-4xl px-6 py-10">
+        <Link href="/dashboard" className="text-sm text-ink/60 hover:text-ink" data-hover>
           ← All events
         </Link>
-        <h1 className="mt-2 text-h1">{event.name}</h1>
+        <h1 className="mt-2 text-h1 lowercase">{event.name}</h1>
         <p className="text-ink/60">{event.date ?? 'No date set'}</p>
 
         <Card className="mt-6">

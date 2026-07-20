@@ -1,4 +1,4 @@
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { config } from './config.js';
 
 export const s3 = new S3Client({
@@ -17,4 +17,11 @@ export async function getObjectBytes(key: string): Promise<Buffer> {
   if (!res.Body) throw new Error(`Object not found: ${key}`);
   const bytes = await res.Body.transformToByteArray();
   return Buffer.from(bytes);
+}
+
+/** Upload bytes to a key. */
+export async function putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+  await s3.send(
+    new PutObjectCommand({ Bucket: config.S3_BUCKET, Key: key, Body: body, ContentType: contentType }),
+  );
 }

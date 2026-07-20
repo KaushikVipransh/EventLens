@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Sora } from 'next/font/google';
+import { Cursor } from '@/components/cursor';
 import './globals.css';
 
 const sora = Sora({
@@ -17,7 +18,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={sora.variable}>
-      <body className="font-sans">{children}</body>
+      <body className="font-sans">
+        <Cursor />
+        {children}
+      </body>
     </html>
   );
 }

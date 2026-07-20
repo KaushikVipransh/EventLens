@@ -1,7 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import {
+  useState,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from 'react';
 
 function cn(...parts: (string | false | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
@@ -143,36 +148,90 @@ export function CopyButton({ value, label = 'Copy link' }: { value: string; labe
   );
 }
 
-// ── Sparkle accent ────────────────────────────────────────────────────────────
-export function Sparkle({ className }: { className?: string }) {
+// ── Form inputs (shared across all forms) ─────────────────────────────────────
+export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      className={cn(
+        'w-full rounded-xl border border-ink/15 bg-cream-light px-4 py-2.5 text-sm outline-none transition focus:border-ink/40',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function Field({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  hint,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  hint?: string;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium">{label}</span>
+      <Input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        required
+      />
+      {hint && <span className="mt-1 block text-xs text-ink/50">{hint}</span>}
+    </label>
+  );
+}
+
+// ── Brand mark: a minimal camera-lens / aperture glyph ────────────────────────
+export function Mark({ className }: { className?: string }) {
   return (
     <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2z"
-        fill="currentColor"
-      />
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="12" cy="12" r="3.4" fill="currentColor" />
+      <circle cx="8.3" cy="8.3" r="1.15" fill="currentColor" />
     </svg>
   );
 }
 
-// ── Top navigation ────────────────────────────────────────────────────────────
-export function Nav() {
+// ── Top navigation (frosted, sticky — consistent across every page) ───────────
+export function Wordmark() {
   return (
-    <nav className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-      <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
-        <span className="text-coral">
-          <Sparkle />
-        </span>
-        eventlens
-      </Link>
-      <div className="flex items-center gap-3">
-        <Link href="/login" className="text-sm font-medium hover:opacity-70">
-          Log in
-        </Link>
-        <PillLink href="/signup" className="py-2">
-          Sign up
-        </PillLink>
+    <Link href="/" className="flex items-center gap-2 text-lg font-semibold" data-hover>
+      <span className="text-coral">
+        <Mark />
+      </span>
+      eventlens
+    </Link>
+  );
+}
+
+export function Nav({ right }: { right?: ReactNode }) {
+  return (
+    <header className="sticky top-0 z-50 border-b border-ink/5 bg-cream/70 backdrop-blur-md">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <Wordmark />
+        <div className="flex items-center gap-3">
+          {right ?? (
+            <>
+              <Link href="/login" className="text-sm font-medium hover:opacity-60" data-hover>
+                Log in
+              </Link>
+              <PillLink href="/signup" className="py-2">
+                Sign up
+              </PillLink>
+            </>
+          )}
+        </div>
       </div>
-    </nav>
+    </header>
   );
 }

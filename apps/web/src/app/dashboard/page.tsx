@@ -50,23 +50,27 @@ export default function DashboardPage() {
     }
   }
 
+  function logout() {
+    orgToken.clear();
+    router.replace('/login');
+  }
+
   return (
     <main className="relative min-h-screen overflow-hidden">
-      <GradientBlob className="right-[-8%] top-[-5%] h-80 w-80" color="#63C48A" />
-      <Nav />
-      <div className="relative z-10 mx-auto max-w-4xl px-6 py-8">
-        <div className="flex items-center justify-between">
-          <h1 className="text-h1">your events</h1>
+      <Nav
+        right={
           <button
-            onClick={() => {
-              orgToken.clear();
-              router.replace('/login');
-            }}
-            className="text-sm text-ink/60 hover:text-ink"
+            onClick={logout}
+            className="text-sm font-medium text-ink/60 hover:text-ink"
+            data-hover
           >
             Log out
           </button>
-        </div>
+        }
+      />
+      <GradientBlob className="right-[-8%] top-[10%] h-80 w-80" color="#63C48A" />
+      <div className="relative z-10 mx-auto max-w-4xl px-6 py-10">
+        <h1 className="text-h1 lowercase">your events</h1>
 
         <Card className="mt-6">
           <h2 className="text-lg font-semibold">Create a new event</h2>

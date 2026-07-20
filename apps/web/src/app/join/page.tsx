@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api, ApiError } from '@/lib/api';
-import { Card, GradientBlob, Nav, PillButton, Sparkle } from '@/components/ui';
+import { Card, GradientBlob, Nav, PillButton, Mark } from '@/components/ui';
+import { Reveal } from '@/components/motion';
 
 export default function JoinPage() {
   const router = useRouter();
@@ -27,14 +28,15 @@ export default function JoinPage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden">
-      <GradientBlob className="left-[-10%] top-0 h-96 w-96" color="#6FA8E8" />
       <Nav />
-      <div className="relative z-10 mx-auto mt-10 max-w-md px-6">
+      <GradientBlob className="left-[-10%] top-[10%] h-96 w-96" color="#6FA8E8" />
+      <div className="relative z-10 mx-auto mt-12 max-w-md px-6">
+        <Reveal>
         <Card className="text-center">
           <span className="text-amber">
-            <Sparkle />
+            <Mark />
           </span>
-          <h1 className="mt-2 text-h2 font-semibold">Enter your event code</h1>
+          <h1 className="mt-2 text-h2 font-semibold lowercase">enter your event code</h1>
           <p className="mt-1 text-sm text-ink/60">
             Find the code on the link or card shared by your event organizer.
           </p>
@@ -52,6 +54,7 @@ export default function JoinPage() {
             </PillButton>
           </form>
         </Card>
+        </Reveal>
       </div>
     </main>
   );

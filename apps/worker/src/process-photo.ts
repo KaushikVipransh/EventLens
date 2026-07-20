@@ -2,9 +2,22 @@ import { db, schema } from '@eventlens/db';
 import type { PhotoJobData } from '@eventlens/queue';
 import { detectEmbedResponseSchema } from '@eventlens/shared';
 import { eq } from 'drizzle-orm';
+import sharp from 'sharp';
 import { config } from './config.js';
 import { logger } from './logger.js';
-import { getObjectBytes } from './storage.js';
+import { getObjectBytes, putObject } from './storage.js';
+
+/** Resize an image to a small gallery preview and store it; returns the key. */
+async function generateThumbnail(originalKey: string, bytes: Buffer): Promise<string> {
+  const thumb = await sharp(bytes)
+    .rotate() // respect EXIF orientation
+    .resize(480, 480, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 72 })
+    .toBuffer();
+  const thumbKey = `thumb/${originalKey}.jpg`;
+  await putObject(thumbKey, thumb, 'image/jpeg');
+  return thumbKey;
+}
 
 /**
  * Process a single uploaded photo: fetch bytes from storage → detect faces +
@@ -19,6 +32,10 @@ export async function processPhotoJob(data: PhotoJobData): Promise<void> {
     .where(eq(schema.photos.id, data.photoId));
 
   const bytes = await getObjectBytes(data.storageKey);
+
+  // Generate a lightweight gallery thumbnail so browsers never load full-res
+  // originals in the grid (critical for large events / low-RAM clients).
+  const thumbStorageKey = await generateThumbnail(data.storageKey, bytes);
 
   const res = await fetch(`${config.FACE_SERVICE_URL}/detect-embed`, {
     method: 'POST',
@@ -47,7 +64,13 @@ export async function processPhotoJob(data: PhotoJobData): Promise<void> {
 
   await db
     .update(schema.photos)
-    .set({ status: 'processed', faceCount: faces.length, processedAt: new Date(), error: null })
+    .set({
+      status: 'processed',
+      faceCount: faces.length,
+      thumbStorageKey,
+      processedAt: new Date(),
+      error: null,
+    })
     .where(eq(schema.photos.id, data.photoId));
 
   logger.info({ photoId: data.photoId, faces: faces.length }, 'photo processed');

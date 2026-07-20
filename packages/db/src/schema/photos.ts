@@ -18,6 +18,8 @@ export const photos = pgTable('photos', {
     onDelete: 'set null',
   }),
   storageKey: text('storage_key').notNull(),
+  // Small resized preview for gallery grids (nullable until generated).
+  thumbStorageKey: text('thumb_storage_key'),
   filename: text('filename').notNull(),
   contentType: text('content_type').notNull(),
   size: integer('size').notNull(),

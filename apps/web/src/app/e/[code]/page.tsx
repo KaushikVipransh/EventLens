@@ -4,14 +4,20 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, ApiError, type GalleryPhoto, type SearchMatch } from '@/lib/api';
 import { SelfieCapture } from '@/components/SelfieCapture';
-import { GradientBlob, PillButton, Sparkle } from '@/components/ui';
+import { GradientBlob, Nav, PillButton, Mark } from '@/components/ui';
+
+const galleryNavRight = <span className="text-sm text-ink/50">guest gallery</span>;
 
 export default function AttendeeGalleryPage() {
   const params = useParams<{ code: string }>();
   const code = params.code;
+  const PAGE_SIZE = 24;
   const [token, setToken] = useState<string | null>(null);
   const [eventName, setEventName] = useState('');
   const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [showCamera, setShowCamera] = useState(false);
@@ -25,13 +31,28 @@ export default function AttendeeGalleryPage() {
       .then(async ({ token, event }) => {
         setToken(token);
         setEventName(event.name);
-        const { photos } = await api.galleryPhotos(token);
+        const { photos } = await api.galleryPhotos(token, 1, PAGE_SIZE);
         setPhotos(photos);
+        setHasMore(photos.length === PAGE_SIZE);
       })
       .catch((err) =>
         setError(err instanceof ApiError ? err.message : 'Could not load this event.'),
       );
   }, [code]);
+
+  async function loadMore() {
+    if (!token || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const next = page + 1;
+      const { photos: more } = await api.galleryPhotos(token, next, PAGE_SIZE);
+      setPhotos((prev) => [...prev, ...more]);
+      setPage(next);
+      setHasMore(more.length === PAGE_SIZE);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function onSelfie(blob: Blob) {
     if (!token) return;
@@ -50,10 +71,13 @@ export default function AttendeeGalleryPage() {
 
   if (error) {
     return (
-      <main className="grid min-h-screen place-items-center px-6 text-center">
-        <div>
-          <h1 className="text-h2 font-semibold">Event not found</h1>
-          <p className="mt-2 text-ink/60">{error}</p>
+      <main className="min-h-screen">
+        <Nav right={galleryNavRight} />
+        <div className="grid place-items-center px-6 py-24 text-center">
+          <div>
+            <h1 className="text-h2 font-semibold lowercase">event not found</h1>
+            <p className="mt-2 text-ink/60">{error}</p>
+          </div>
         </div>
       </main>
     );
@@ -63,11 +87,12 @@ export default function AttendeeGalleryPage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden pb-24">
-      <GradientBlob className="right-[-8%] top-[-5%] h-80 w-80" color="#F0997B" />
-      <GradientBlob className="left-[-8%] top-[20%] h-72 w-72" color="#8B6FD9" />
+      <Nav right={galleryNavRight} />
+      <GradientBlob className="right-[-8%] top-[6%] h-80 w-80" color="#F0997B" />
+      <GradientBlob className="left-[-8%] top-[26%] h-72 w-72" color="#8B6FD9" />
 
-      <header className="relative z-10 mx-auto max-w-6xl px-6 py-8">
-        <p className="text-sm text-ink/50">event gallery</p>
+      <header className="relative z-10 mx-auto max-w-6xl px-6 py-10">
+        <p className="text-sm uppercase tracking-widest text-ink/40">event gallery</p>
         <h1 className="text-h1 lowercase">{eventName || 'Loading…'}</h1>
       </header>
 
@@ -101,6 +126,13 @@ export default function AttendeeGalleryPage() {
           {photos.length === 0 && (
             <p className="mt-6 text-ink/50">No processed photos yet — check back shortly.</p>
           )}
+          {hasMore && (
+            <div className="mt-8 flex justify-center">
+              <PillButton variant="secondary" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? 'Loading…' : 'Load more photos'}
+              </PillButton>
+            </div>
+          )}
         </div>
       )}
 
@@ -113,7 +145,7 @@ export default function AttendeeGalleryPage() {
             className="shadow-lift"
             disabled={!token}
           >
-            <Sparkle className="h-4 w-4" /> Find my photos
+            <Mark className="h-4 w-4" /> Find my photos
           </PillButton>
         </div>
       )}
@@ -144,7 +176,9 @@ function PhotoGrid({
           <img
             src={p.url}
             alt={p.filename}
-            className="aspect-square w-full object-cover transition group-hover:scale-[1.03]"
+            loading="lazy"
+            decoding="async"
+            className="aspect-square w-full bg-cream object-cover transition group-hover:scale-[1.03]"
           />
           {token && (
             <button

@@ -1,7 +1,7 @@
 import { db, queryClient, schema } from '@eventlens/db';
 import { attendeeAccessSchema, detectEmbedResponseSchema } from '@eventlens/shared';
 import archiver from 'archiver';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import express, { Router } from 'express';
 import { z } from 'zod';
 import { config } from '../config.js';
@@ -47,11 +47,22 @@ galleryRouter.get(
       orderBy: desc(schema.photos.createdAt),
       limit,
       offset: (page - 1) * limit,
-      columns: { id: true, filename: true, faceCount: true, createdAt: true, storageKey: true },
+      columns: {
+        id: true,
+        filename: true,
+        faceCount: true,
+        createdAt: true,
+        storageKey: true,
+        thumbStorageKey: true,
+      },
     });
 
     const photos = await Promise.all(
-      rows.map(async ({ storageKey, ...p }) => ({ ...p, url: await presignGet(storageKey) })),
+      rows.map(async ({ storageKey, thumbStorageKey, ...p }) => ({
+        ...p,
+        // Small preview for the grid; full-res only fetched on download.
+        url: await presignGet(thumbStorageKey ?? storageKey),
+      })),
     );
 
     res.json({ page, limit, photos });
@@ -86,14 +97,20 @@ galleryRouter.post(
 
     // One row per matching photo, ranked by closest face.
     const rows = await queryClient<
-      { id: string; filename: string; storage_key: string; distance: number }[]
+      {
+        id: string;
+        filename: string;
+        storage_key: string;
+        thumb_storage_key: string | null;
+        distance: number;
+      }[]
     >`
-      select p.id, p.filename, p.storage_key,
+      select p.id, p.filename, p.storage_key, p.thumb_storage_key,
              min(f.embedding <=> ${vectorLiteral}::vector) as distance
       from faces f
       join photos p on p.id = f.photo_id
       where f.event_id = ${eventId} and p.status = 'processed'
-      group by p.id, p.filename, p.storage_key
+      group by p.id, p.filename, p.storage_key, p.thumb_storage_key
       having min(f.embedding <=> ${vectorLiteral}::vector) < ${config.FACE_MATCH_THRESHOLD}
       order by distance asc
       limit 300
@@ -104,7 +121,7 @@ galleryRouter.post(
         id: r.id,
         filename: r.filename,
         distance: Number(r.distance),
-        url: await presignGet(r.storage_key),
+        url: await presignGet(r.thumb_storage_key ?? r.storage_key),
       })),
     );
 
