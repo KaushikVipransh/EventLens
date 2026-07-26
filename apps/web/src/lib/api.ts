@@ -131,6 +131,19 @@ export interface SearchMatch {
   /** Full-resolution image, or the video file for playback, opened in the lightbox. */
   fullUrl: string;
 }
+export interface PersonPhoto {
+  id: string;
+  filename: string;
+  mediaType: MediaType;
+  url: string;
+  fullUrl: string;
+}
+export interface Person {
+  id: string;
+  count: number;
+  cover?: PersonPhoto;
+  photos: PersonPhoto[];
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const api = {
@@ -272,15 +285,34 @@ export const api = {
       '/attendee/session',
       { method: 'POST', body: { code } },
     ),
-  galleryPhotos: (token: string, page = 1, limit = 40, albumId?: string) =>
+  galleryPhotos: (
+    token: string,
+    page = 1,
+    limit = 40,
+    opts: { albumId?: string; mediaType?: 'photo' | 'video' } = {},
+  ) =>
     request<{ page: number; limit: number; photos: GalleryPhoto[] }>(
-      `/attendee/photos?page=${page}&limit=${limit}${albumId ? `&albumId=${albumId}` : ''}`,
+      `/attendee/photos?page=${page}&limit=${limit}` +
+        `${opts.albumId ? `&albumId=${opts.albumId}` : ''}` +
+        `${opts.mediaType ? `&mediaType=${opts.mediaType}` : ''}`,
       { token },
     ),
 
   /** Albums (with processed-photo counts) for the attendee's event. */
   attendeeAlbums: (token: string) =>
     request<{ albums: Album[] }>('/attendee/albums', { token }),
+
+  /** Auto-clustered people (faces grouped) for the attendee's event. */
+  attendeePeople: (token: string) =>
+    request<{ people: Person[] }>('/attendee/people', { token }),
+
+  /** Fetch specific photos by id (Favourites view) with fresh presigned URLs. */
+  attendeePhotosByIds: (token: string, ids: string[]) =>
+    request<{ photos: GalleryPhoto[] }>('/attendee/photos/by-ids', {
+      method: 'POST',
+      body: { ids },
+      token,
+    }),
 
   /** Send a selfie (image blob) and get matching photos. */
   attendeeSearch: async (token: string, image: Blob) => {

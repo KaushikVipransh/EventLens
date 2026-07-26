@@ -32,6 +32,8 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(40),
   // Optional: restrict to one album; omitted = every photo in the event.
   albumId: z.string().uuid().optional(),
+  // Optional: restrict to photos or videos.
+  mediaType: z.enum(['photo', 'video']).optional(),
 });
 
 /** Albums for the token's event, each with its processed-photo count. */
@@ -70,6 +72,7 @@ galleryRouter.get(
         eq(schema.photos.eventId, eventId),
         eq(schema.photos.status, 'processed'),
         parsed.albumId ? eq(schema.photos.albumId, parsed.albumId) : undefined,
+        parsed.mediaType ? eq(schema.photos.mediaType, parsed.mediaType) : undefined,
       ),
       orderBy: desc(schema.photos.createdAt),
       limit,
@@ -96,6 +99,158 @@ galleryRouter.get(
     );
 
     res.json({ page, limit, photos });
+  }),
+);
+
+const byIdsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(500) });
+
+/** Fetch specific photos by id (for the Favourites view; fresh presigned URLs). */
+galleryRouter.post(
+  '/attendee/photos/by-ids',
+  requireAttendee,
+  asyncHandler(async (req, res) => {
+    const { ids } = parse(byIdsSchema, req.body);
+    const { eventId } = req.attendee!;
+    const rows = await db.query.photos.findMany({
+      where: and(
+        eq(schema.photos.eventId, eventId),
+        eq(schema.photos.status, 'processed'),
+        inArray(schema.photos.id, ids),
+      ),
+      columns: {
+        id: true,
+        filename: true,
+        faceCount: true,
+        createdAt: true,
+        mediaType: true,
+        durationSeconds: true,
+        storageKey: true,
+        thumbStorageKey: true,
+      },
+    });
+    const photos = await Promise.all(
+      rows.map(async ({ storageKey, thumbStorageKey, ...p }) => ({
+        ...p,
+        url: await presignGet(thumbStorageKey ?? storageKey),
+        fullUrl: await presignGet(storageKey),
+      })),
+    );
+    res.json({ photos });
+  }),
+);
+
+/**
+ * "People": greedily cluster the event's face embeddings into distinct people
+ * (cosine similarity on L2-normalized vectors), and return each cluster with a
+ * cover photo and its photos. Bounded for on-demand use on large events.
+ */
+galleryRouter.get(
+  '/attendee/people',
+  requireAttendee,
+  asyncHandler(async (req, res) => {
+    const { eventId } = req.attendee!;
+    const SIM_THRESHOLD = 0.5; // ~cosine distance < 0.5, matches search tuning
+    const MAX_FACES = 6000;
+    const MAX_PEOPLE = 60;
+    const MAX_PHOTOS_PER_PERSON = 120;
+
+    const faces = await queryClient<
+      { photo_id: string; det_score: number; embedding: string }[]
+    >`
+      select f.photo_id, f.det_score, f.embedding::text as embedding
+      from faces f
+      join photos p on p.id = f.photo_id
+      where f.event_id = ${eventId} and p.status = 'processed'
+      order by f.det_score desc
+      limit ${MAX_FACES}
+    `;
+
+    interface Cluster {
+      centroid: number[];
+      n: number;
+      photoIds: Set<string>;
+      repPhotoId: string;
+      repScore: number;
+    }
+    const clusters: Cluster[] = [];
+
+    const parseVec = (s: string): number[] => JSON.parse(s) as number[];
+    const dot = (a: number[], b: number[]): number => {
+      let s = 0;
+      for (let i = 0; i < a.length; i++) s += a[i]! * b[i]!;
+      return s;
+    };
+
+    for (const f of faces) {
+      const v = parseVec(f.embedding);
+      let best: Cluster | null = null;
+      let bestSim = SIM_THRESHOLD;
+      for (const c of clusters) {
+        const sim = dot(v, c.centroid);
+        if (sim > bestSim) {
+          bestSim = sim;
+          best = c;
+        }
+      }
+      if (best) {
+        // Running mean centroid, then renormalize for cosine stability.
+        const c = best.centroid;
+        for (let i = 0; i < c.length; i++) c[i] = ((c[i] ?? 0) * best.n + (v[i] ?? 0)) / (best.n + 1);
+        const norm = Math.sqrt(dot(c, c)) || 1;
+        for (let i = 0; i < c.length; i++) c[i] = (c[i] ?? 0) / norm;
+        best.n += 1;
+        best.photoIds.add(f.photo_id);
+      } else {
+        clusters.push({
+          centroid: v,
+          n: 1,
+          photoIds: new Set([f.photo_id]),
+          repPhotoId: f.photo_id,
+          repScore: f.det_score,
+        });
+      }
+    }
+
+    // Largest clusters first; drop singletons (usually noise/incidental faces).
+    const top = clusters
+      .filter((c) => c.photoIds.size >= 2)
+      .sort((a, b) => b.photoIds.size - a.photoIds.size)
+      .slice(0, MAX_PEOPLE);
+
+    // Presign a cover + the photos for each person.
+    const allIds = new Set<string>();
+    for (const c of top) for (const id of c.photoIds) allIds.add(id);
+    const photoRows = await db.query.photos.findMany({
+      where: and(eq(schema.photos.eventId, eventId), inArray(schema.photos.id, [...allIds])),
+      columns: {
+        id: true,
+        filename: true,
+        mediaType: true,
+        storageKey: true,
+        thumbStorageKey: true,
+      },
+    });
+    const byId = new Map(
+      await Promise.all(
+        photoRows.map(async (r) => {
+          const url = await presignGet(r.thumbStorageKey ?? r.storageKey);
+          const fullUrl = await presignGet(r.storageKey);
+          return [r.id, { id: r.id, filename: r.filename, mediaType: r.mediaType, url, fullUrl }] as const;
+        }),
+      ),
+    );
+
+    const people = top.map((c, i) => {
+      const photos = [...c.photoIds].map((id) => byId.get(id)).filter(Boolean).slice(0, MAX_PHOTOS_PER_PERSON);
+      return {
+        id: `p${i}`,
+        count: c.photoIds.size,
+        cover: byId.get(c.repPhotoId) ?? photos[0],
+        photos,
+      };
+    });
+
+    res.json({ people });
   }),
 );
 
