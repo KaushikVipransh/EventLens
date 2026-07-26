@@ -2,10 +2,12 @@ import { db, schema } from '@eventlens/db';
 import { createAlbumSchema, createEventSchema, createPhotographerSchema } from '@eventlens/shared';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { Router, type Request } from 'express';
+import { z } from 'zod';
 import { config } from '../config.js';
 import { requireOrganizer } from '../auth/middleware.js';
 import { asyncHandler, notFound, parse } from '../http.js';
 import { makeAttendeeCode, makeUploadToken } from '../ids.js';
+import { deleteObject, presignGet } from '../storage.js';
 
 export const eventsRouter = Router();
 
@@ -111,6 +113,72 @@ eventsRouter.delete(
           eq(schema.albums.eventId, event.id),
         ),
       );
+    res.status(204).end();
+  }),
+);
+
+// ── Photos (organizer view + management) ──────────────────────────────────────
+const photosQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(40),
+  albumId: z.string().uuid().optional(),
+});
+
+eventsRouter.get(
+  '/:id/photos',
+  asyncHandler(async (req, res) => {
+    const event = await getOwnedEvent(req);
+    const q = parse(photosQuerySchema, req.query);
+    const page = q.page ?? 1;
+    const limit = q.limit ?? 40;
+
+    const rows = await db.query.photos.findMany({
+      where: and(
+        eq(schema.photos.eventId, event.id),
+        q.albumId ? eq(schema.photos.albumId, q.albumId) : undefined,
+      ),
+      orderBy: desc(schema.photos.createdAt),
+      limit,
+      offset: (page - 1) * limit,
+      columns: {
+        id: true,
+        filename: true,
+        status: true,
+        faceCount: true,
+        albumId: true,
+        storageKey: true,
+        thumbStorageKey: true,
+      },
+    });
+
+    const photos = await Promise.all(
+      rows.map(async ({ storageKey, thumbStorageKey, ...p }) => ({
+        ...p,
+        url: await presignGet(thumbStorageKey ?? storageKey),
+        fullUrl: await presignGet(storageKey),
+      })),
+    );
+    res.json({ page, limit, photos });
+  }),
+);
+
+eventsRouter.delete(
+  '/:id/photos/:photoId',
+  asyncHandler(async (req, res) => {
+    const event = await getOwnedEvent(req);
+    const photo = await db.query.photos.findFirst({
+      where: and(
+        eq(schema.photos.id, String(req.params.photoId)),
+        eq(schema.photos.eventId, event.id),
+      ),
+      columns: { id: true, storageKey: true, thumbStorageKey: true },
+    });
+    if (!photo) throw notFound('Photo not found');
+
+    // Remove the row (faces cascade) then best-effort delete storage objects.
+    await db.delete(schema.photos).where(eq(schema.photos.id, photo.id));
+    await deleteObject(photo.storageKey);
+    if (photo.thumbStorageKey) await deleteObject(photo.thumbStorageKey);
     res.status(204).end();
   }),
 );

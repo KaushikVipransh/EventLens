@@ -12,6 +12,7 @@ import {
   type Photographer,
 } from '@/lib/api';
 import { Card, Chip, CopyButton, GradientBlob, Nav, PillButton } from '@/components/ui';
+import { EventPhotos } from '@/components/EventPhotos';
 
 export default function EventDetailPage() {
   const router = useRouter();
@@ -192,6 +193,14 @@ export default function EventDetailPage() {
               <li className="text-sm text-ink/50">No photographers added yet.</li>
             )}
           </ul>
+        </Card>
+
+        <Card className="mt-6">
+          <h2 className="text-lg font-semibold">Photos</h2>
+          <p className="mb-4 mt-1 text-sm text-ink/60">
+            Every photo uploaded to this event. Click to view; hover to delete.
+          </p>
+          {token && <EventPhotos token={token} eventId={id} albums={albums} />}
         </Card>
       </div>
     </main>

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
 import {
   CreateBucketCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   PutObjectCommand,
@@ -47,6 +48,15 @@ export function presignGet(key: string, expiresIn = 900): Promise<string> {
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: config.S3_BUCKET, Key: key }), {
     expiresIn,
   });
+}
+
+/** Delete an object; ignores "not found" so cleanup is idempotent. */
+export async function deleteObject(key: string): Promise<void> {
+  try {
+    await s3.send(new DeleteObjectCommand({ Bucket: config.S3_BUCKET, Key: key }));
+  } catch {
+    // Object may already be gone; deletion is best-effort.
+  }
 }
 
 /** Fetch an object as a Node Readable stream (for download/zip streaming). */

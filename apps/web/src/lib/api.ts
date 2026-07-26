@@ -74,6 +74,15 @@ export interface GalleryPhoto {
   /** Full-resolution presigned URL, used by the lightbox on open. */
   fullUrl: string;
 }
+export interface OrganizerPhoto {
+  id: string;
+  filename: string;
+  status: 'pending' | 'processing' | 'processed' | 'failed';
+  faceCount: number;
+  albumId: string | null;
+  url: string;
+  fullUrl: string;
+}
 export interface SearchMatch {
   id: string;
   filename: string;
@@ -114,6 +123,15 @@ export const api = {
     request<{ albums: Album[] }>(`/events/${id}/albums`, { token }),
   deleteAlbum: (token: string, id: string, albumId: string) =>
     request<null>(`/events/${id}/albums/${albumId}`, { method: 'DELETE', token }),
+
+  // Photos (organizer view + management)
+  listEventPhotos: (token: string, id: string, page = 1, limit = 24, albumId?: string) =>
+    request<{ page: number; limit: number; photos: OrganizerPhoto[] }>(
+      `/events/${id}/photos?page=${page}&limit=${limit}${albumId ? `&albumId=${albumId}` : ''}`,
+      { token },
+    ),
+  deleteEventPhoto: (token: string, id: string, photoId: string) =>
+    request<null>(`/events/${id}/photos/${photoId}`, { method: 'DELETE', token }),
 
   // Uploads (photographer)
   uploadSession: (uploadToken: string) =>
