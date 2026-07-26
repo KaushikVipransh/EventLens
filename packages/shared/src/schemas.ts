@@ -15,6 +15,20 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+// ── Attendee accounts (optional guest sign-in) ────────────────────────────────
+export const attendeeSignupSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(200),
+  name: z.string().min(1).max(120),
+});
+export type AttendeeSignupInput = z.infer<typeof attendeeSignupSchema>;
+
+export const attendeeLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1).max(200),
+});
+export type AttendeeLoginInput = z.infer<typeof attendeeLoginSchema>;
+
 // ── Events ───────────────────────────────────────────────────────────────────
 export const createEventSchema = z.object({
   name: z.string().min(1).max(160),

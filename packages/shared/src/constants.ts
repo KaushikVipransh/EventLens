@@ -13,6 +13,7 @@ export type UserRole = (typeof USER_ROLE)[number];
 export const TOKEN_AUDIENCE = {
   organizer: 'eventlens:organizer',
   attendee: 'eventlens:attendee',
+  attendeeUser: 'eventlens:attendee-user',
   photographer: 'eventlens:photographer-upload',
 } as const;
 

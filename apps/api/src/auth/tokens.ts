@@ -53,6 +53,30 @@ export function verifyAttendeeToken(token: string): AttendeeClaims {
   }
 }
 
+// ── Attendee account (guest sign-in) tokens ───────────────────────────────────
+export interface AttendeeUserClaims {
+  attendeeUserId: string;
+}
+
+export function signAttendeeUserToken(attendeeUserId: string): string {
+  return jwt.sign({}, config.JWT_SECRET, {
+    subject: attendeeUserId,
+    audience: TOKEN_AUDIENCE.attendeeUser,
+    expiresIn: '30d',
+  });
+}
+
+export function verifyAttendeeUserToken(token: string): AttendeeUserClaims {
+  try {
+    const decoded = jwt.verify(token, config.JWT_SECRET, { audience: TOKEN_AUDIENCE.attendeeUser });
+    if (typeof decoded === 'string' || !decoded.sub) throw unauthorized('Invalid token');
+    return { attendeeUserId: decoded.sub };
+  } catch (err) {
+    if (err instanceof Error && err.name === 'HttpError') throw err;
+    throw unauthorized('Invalid or expired token');
+  }
+}
+
 // ── Photographer upload-link tokens ───────────────────────────────────────────
 export interface PhotographerClaims {
   photographerId: string;

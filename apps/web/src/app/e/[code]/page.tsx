@@ -2,12 +2,25 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api, ApiError, type Album, type GalleryPhoto, type SearchMatch } from '@/lib/api';
+import Link from 'next/link';
+import {
+  api,
+  ApiError,
+  attendeeToken,
+  type Album,
+  type AttendeeUser,
+  type GalleryPhoto,
+  type SearchMatch,
+} from '@/lib/api';
 import { SelfieCapture } from '@/components/SelfieCapture';
 import { Lightbox, type LightboxItem } from '@/components/Lightbox';
 import { GradientBlob, Nav, PillButton, Mark } from '@/components/ui';
 
-const galleryNavRight = <span className="text-sm text-ink/50">guest gallery</span>;
+const galleryNavRight = (
+  <Link href="/account" className="text-sm font-medium text-ink/60 hover:text-ink" data-hover>
+    my account
+  </Link>
+);
 
 type Tab = 'all' | 'mine';
 
@@ -34,6 +47,18 @@ export default function AttendeeGalleryPage() {
   const [tab, setTab] = useState<Tab>('all');
   // Which list + index the lightbox is showing (null = closed).
   const [viewer, setViewer] = useState<{ items: LightboxItem[]; index: number } | null>(null);
+
+  // Optional signed-in attendee account (enables one-tap "use my saved face").
+  const [account, setAccount] = useState<AttendeeUser | null>(null);
+
+  useEffect(() => {
+    const t = attendeeToken.get();
+    if (!t) return;
+    api
+      .attendeeMe(t)
+      .then(({ user }) => setAccount(user))
+      .catch(() => attendeeToken.clear());
+  }, []);
 
   useEffect(() => {
     api
@@ -74,6 +99,22 @@ export default function AttendeeGalleryPage() {
       setHasMore(more.length === PAGE_SIZE);
     } finally {
       setLoadingMore(false);
+    }
+  }
+
+  async function searchWithSavedFace() {
+    const t = attendeeToken.get();
+    if (!t) return;
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const { matches } = await api.attendeeSearchMe(t, code);
+      setMatches(matches);
+      setTab('mine');
+    } catch (err) {
+      setSearchError(err instanceof ApiError ? err.message : 'Search failed');
+    } finally {
+      setSearching(false);
     }
   }
 
@@ -185,11 +226,28 @@ export default function AttendeeGalleryPage() {
                 Take a quick selfie and we'll instantly gather every photo from this event that
                 you appear in — right here, in your own section.
               </p>
-              <div className="mt-6">
-                <PillButton variant="accent" onClick={() => setShowCamera(true)} disabled={!token}>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                {account?.hasFace && (
+                  <PillButton variant="accent" onClick={searchWithSavedFace} disabled={searching}>
+                    <Mark className="h-4 w-4" /> {searching ? 'Finding…' : 'Use my saved face'}
+                  </PillButton>
+                )}
+                <PillButton
+                  variant={account?.hasFace ? 'secondary' : 'accent'}
+                  onClick={() => setShowCamera(true)}
+                  disabled={!token}
+                >
                   <Mark className="h-4 w-4" /> Capture selfie
                 </PillButton>
               </div>
+              {!account && (
+                <p className="mt-4 text-sm text-ink/50">
+                  <Link href="/account" className="font-medium text-ink hover:opacity-70" data-hover>
+                    Sign in
+                  </Link>{' '}
+                  to save your face and skip this at every event.
+                </p>
+              )}
             </div>
           ) : (
             <>

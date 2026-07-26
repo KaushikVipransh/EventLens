@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { unauthorized } from '../http.js';
 import {
   verifyAttendeeToken,
+  verifyAttendeeUserToken,
   verifyOrganizerToken,
   verifyPhotographerToken,
 } from './tokens.js';
@@ -27,5 +28,11 @@ export function requireAttendee(req: Request, _res: Response, next: NextFunction
 /** Require a valid photographer upload-link JWT; attaches `req.photographer`. */
 export function requirePhotographer(req: Request, _res: Response, next: NextFunction): void {
   req.photographer = verifyPhotographerToken(bearer(req));
+  next();
+}
+
+/** Require a valid attendee-account JWT; attaches `req.attendeeUser`. */
+export function requireAttendeeUser(req: Request, _res: Response, next: NextFunction): void {
+  req.attendeeUser = verifyAttendeeUserToken(bearer(req));
   next();
 }

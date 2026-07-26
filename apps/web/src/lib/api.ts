@@ -42,11 +42,26 @@ export const orgToken = {
   clear: () => localStorage.removeItem(ORG_KEY),
 };
 
+const ATTENDEE_KEY = 'eventlens.attendee.token';
+
+/** Optional attendee-account session (separate from the per-event code token). */
+export const attendeeToken = {
+  get: () => (typeof window === 'undefined' ? null : localStorage.getItem(ATTENDEE_KEY)),
+  set: (t: string) => localStorage.setItem(ATTENDEE_KEY, t),
+  clear: () => localStorage.removeItem(ATTENDEE_KEY),
+};
+
 // ── Shared types ──────────────────────────────────────────────────────────────
 export interface Organizer {
   id: string;
   email: string;
   name: string;
+}
+export interface AttendeeUser {
+  id: string;
+  email: string;
+  name: string;
+  hasFace: boolean;
 }
 export interface EventRecord {
   id: string;
@@ -212,7 +227,37 @@ export const api = {
       token,
     }),
 
-  // Attendee
+  // Attendee accounts (optional guest sign-in)
+  attendeeSignup: (body: { email: string; password: string; name: string }) =>
+    request<{ token: string; user: AttendeeUser }>('/attendee-auth/signup', {
+      method: 'POST',
+      body,
+    }),
+  attendeeLogin: (body: { email: string; password: string }) =>
+    request<{ token: string; user: AttendeeUser }>('/attendee-auth/login', {
+      method: 'POST',
+      body,
+    }),
+  attendeeMe: (token: string) => request<{ user: AttendeeUser }>('/attendee-auth/me', { token }),
+  /** Enroll/replace the account's reference face from a selfie blob. */
+  enrollFace: async (token: string, image: Blob) => {
+    const res = await fetch(`${BASE}/attendee-auth/face`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': image.type || 'image/jpeg' },
+      body: image,
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new ApiError(res.status, data?.error ?? 'Could not save your face', data);
+    return data as { hasFace: boolean };
+  },
+  /** Find the signed-in account's photos in an event using the stored face. */
+  attendeeSearchMe: (token: string, code: string) =>
+    request<{ event: { name: string }; count: number; matches: SearchMatch[] }>(
+      '/attendee-auth/search',
+      { method: 'POST', body: { code }, token },
+    ),
+
+  // Attendee (per-event code)
   attendeeSession: (code: string) =>
     request<{ token: string; event: { id: string; name: string; date: string | null } }>(
       '/attendee/session',
