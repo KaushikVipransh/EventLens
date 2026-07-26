@@ -21,6 +21,11 @@ const envSchema = z.object({
     .transform((v) => v === 'true'),
   FACE_SERVICE_URL: z.string().url().default('http://localhost:8000'),
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
+  // Storage-saver: after face processing, the stored photo is re-encoded to a
+  // capped JPEG (discarding the camera-original) to save storage at scale.
+  // Set INGEST_MAX_EDGE=0 to disable and keep originals untouched.
+  INGEST_MAX_EDGE: z.coerce.number().int().min(0).default(2560),
+  INGEST_QUALITY: z.coerce.number().int().min(1).max(100).default(82),
 });
 
 const parsed = envSchema.safeParse(process.env);
