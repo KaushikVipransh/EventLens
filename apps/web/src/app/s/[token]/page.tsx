@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, ApiError, type SharePhoto } from '@/lib/api';
 import { Lightbox } from '@/components/Lightbox';
-import { GradientBlob, Nav, PillButton } from '@/components/ui';
+import { GradientBlob, Nav, PillButton, PlayBadge } from '@/components/ui';
 
 const navRight = <span className="text-sm text-ink/50">shared gallery</span>;
 
@@ -103,6 +103,7 @@ export default function SharePage() {
                   decoding="async"
                   className="aspect-square w-full bg-cream object-cover transition group-hover:scale-[1.03]"
                 />
+                {p.mediaType === 'video' && <PlayBadge />}
               </button>
               {allowDownload && (
                 <button

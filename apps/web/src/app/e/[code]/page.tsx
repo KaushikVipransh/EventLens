@@ -14,7 +14,7 @@ import {
 } from '@/lib/api';
 import { SelfieCapture } from '@/components/SelfieCapture';
 import { Lightbox, type LightboxItem } from '@/components/Lightbox';
-import { GradientBlob, Nav, PillButton, Mark } from '@/components/ui';
+import { GradientBlob, Nav, PillButton, Mark, PlayBadge } from '@/components/ui';
 
 const galleryNavRight = (
   <Link href="/account" className="text-sm font-medium text-ink/60 hover:text-ink" data-hover>
@@ -394,6 +394,7 @@ function PhotoGrid({
               decoding="async"
               className="aspect-square w-full bg-cream object-cover transition group-hover:scale-[1.03]"
             />
+            {p.mediaType === 'video' && <PlayBadge />}
           </button>
           {token && (
             <button

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type Album, type OrganizerPhoto } from '@/lib/api';
 import { Lightbox, type LightboxItem } from './Lightbox';
-import { PillButton } from './ui';
+import { PillButton, PlayBadge } from './ui';
 
 const PAGE_SIZE = 24;
 
@@ -98,6 +98,7 @@ export function EventPhotos({
                   decoding="async"
                   className="aspect-square w-full object-cover transition group-hover:scale-[1.03]"
                 />
+                {p.mediaType === 'video' && <PlayBadge />}
               </button>
               {p.status !== 'processed' && (
                 <span

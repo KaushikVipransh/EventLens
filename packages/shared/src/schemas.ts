@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { ALLOWED_IMAGE_TYPES, FACE_EMBEDDING_DIM, PHOTO_STATUS } from './constants.js';
+import {
+  ALLOWED_MEDIA_TYPES,
+  FACE_EMBEDDING_DIM,
+  isVideoType,
+  MAX_IMAGE_BYTES,
+  MAX_VIDEO_BYTES,
+  PHOTO_STATUS,
+} from './constants.js';
 
 // ── Auth (organizer accounts) ────────────────────────────────────────────────
 export const signupSchema = z.object({
@@ -60,15 +67,17 @@ export const createPhotographerSchema = z.object({
 export type CreatePhotographerInput = z.infer<typeof createPhotographerSchema>;
 
 // ── Uploads ───────────────────────────────────────────────────────────────────
-const uploadFileSchema = z.object({
-  filename: z.string().min(1).max(255),
-  contentType: z.enum(ALLOWED_IMAGE_TYPES),
-  size: z
-    .number()
-    .int()
-    .positive()
-    .max(25 * 1024 * 1024), // 25 MB cap per photo
-});
+const uploadFileSchema = z
+  .object({
+    filename: z.string().min(1).max(255),
+    contentType: z.enum(ALLOWED_MEDIA_TYPES),
+    size: z.number().int().positive(),
+  })
+  // Per-type size cap: photos 25 MB, videos 500 MB.
+  .refine(
+    (f) => f.size <= (isVideoType(f.contentType) ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES),
+    { message: 'File exceeds the size limit', path: ['size'] },
+  );
 
 export const presignRequestSchema = z.object({
   files: z.array(uploadFileSchema).min(1).max(200),
@@ -83,7 +92,7 @@ export const uploadCompleteSchema = z.object({
       z.object({
         storageKey: z.string().min(1).max(512),
         filename: z.string().min(1).max(255),
-        contentType: z.enum(ALLOWED_IMAGE_TYPES),
+        contentType: z.enum(ALLOWED_MEDIA_TYPES),
         size: z.number().int().positive(),
       }),
     )

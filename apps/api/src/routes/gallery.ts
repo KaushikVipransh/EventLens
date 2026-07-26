@@ -79,6 +79,8 @@ galleryRouter.get(
         filename: true,
         faceCount: true,
         createdAt: true,
+        mediaType: true,
+        durationSeconds: true,
         storageKey: true,
         thumbStorageKey: true,
       },
@@ -130,15 +132,16 @@ galleryRouter.post(
         filename: string;
         storage_key: string;
         thumb_storage_key: string | null;
+        media_type: 'photo' | 'video';
         distance: number;
       }[]
     >`
-      select p.id, p.filename, p.storage_key, p.thumb_storage_key,
+      select p.id, p.filename, p.storage_key, p.thumb_storage_key, p.media_type,
              min(f.embedding <=> ${vectorLiteral}::vector) as distance
       from faces f
       join photos p on p.id = f.photo_id
       where f.event_id = ${eventId} and p.status = 'processed'
-      group by p.id, p.filename, p.storage_key, p.thumb_storage_key
+      group by p.id, p.filename, p.storage_key, p.thumb_storage_key, p.media_type
       having min(f.embedding <=> ${vectorLiteral}::vector) < ${config.FACE_MATCH_THRESHOLD}
       order by distance asc
       limit 300
@@ -149,6 +152,7 @@ galleryRouter.post(
         id: r.id,
         filename: r.filename,
         distance: Number(r.distance),
+        mediaType: r.media_type,
         url: await presignGet(r.thumb_storage_key ?? r.storage_key),
         fullUrl: await presignGet(r.storage_key),
       })),

@@ -8,7 +8,14 @@ import { Reveal } from '@/components/motion';
 
 const uploadNavRight = <span className="text-sm text-ink/50">photographer upload</span>;
 
-const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
+const ALLOWED = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+];
 const CONCURRENCY = 4;
 
 interface Session {
@@ -204,13 +211,13 @@ export default function UploadPage() {
                 Choose files
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
                   multiple
                   className="hidden"
                   onChange={(e) => addFiles(Array.from(e.target.files ?? []))}
                 />
               </label>
-              <p className="mt-3 text-[11px] text-ink/40">JPEG, PNG, or WebP</p>
+              <p className="mt-3 text-[11px] text-ink/40">Photos (JPEG/PNG/WebP) or video (MP4/MOV/WebM)</p>
             </div>
 
             {session && session.albums.length > 0 && (

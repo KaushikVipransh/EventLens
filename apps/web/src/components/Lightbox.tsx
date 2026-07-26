@@ -8,6 +8,7 @@ export interface LightboxItem {
   filename: string;
   url: string;
   fullUrl: string;
+  mediaType?: 'photo' | 'video';
 }
 
 const MIN_SCALE = 1;
@@ -52,6 +53,7 @@ export function Lightbox({
 
   const item = items[index];
   const zoomed = view.scale > 1;
+  const isVideo = item?.mediaType === 'video';
 
   // Reset zoom/pan whenever we move to a different photo. If the new image is
   // already cached, onLoad won't fire — detect .complete so it stays visible.
@@ -175,24 +177,28 @@ export function Lightbox({
           </p>
         </div>
         <div className="flex items-center gap-1">
-          <ToolbarButton
-            label="Zoom out"
-            onClick={() => {
-              const r = containerRef.current?.getBoundingClientRect();
-              if (r) zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.4);
-            }}
-          >
-            −
-          </ToolbarButton>
-          <ToolbarButton
-            label="Zoom in"
-            onClick={() => {
-              const r = containerRef.current?.getBoundingClientRect();
-              if (r) zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.4);
-            }}
-          >
-            +
-          </ToolbarButton>
+          {!isVideo && (
+            <>
+              <ToolbarButton
+                label="Zoom out"
+                onClick={() => {
+                  const r = containerRef.current?.getBoundingClientRect();
+                  if (r) zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.4);
+                }}
+              >
+                −
+              </ToolbarButton>
+              <ToolbarButton
+                label="Zoom in"
+                onClick={() => {
+                  const r = containerRef.current?.getBoundingClientRect();
+                  if (r) zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.4);
+                }}
+              >
+                +
+              </ToolbarButton>
+            </>
+          )}
           {(onDownload || token) && (
             <ToolbarButton
               label="Download"
@@ -227,28 +233,38 @@ export function Lightbox({
           if (e.target === containerRef.current && !zoomed) onClose();
         }}
       >
-        {!loaded && (
+        {!loaded && !isVideo && (
           <div className="absolute inset-0 grid place-items-center text-white/40">Loading…</div>
         )}
         <div className="pointer-events-none absolute inset-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            ref={imgRef}
-            src={item.fullUrl}
-            alt={item.filename}
-            onLoad={() => setLoaded(true)}
-            draggable={false}
-            // h/w-full + object-contain => photo always scales to fill the
-            // viewport while staying fully visible (letterboxed), like Google Photos.
-            className="h-full w-full object-contain p-4"
-            style={{
-              transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
-              cursor: zoomed ? 'grab' : 'zoom-in',
-              opacity: loaded ? 1 : 0,
-              pointerEvents: 'auto',
-              transition: dragRef.current ? 'none' : 'transform 120ms ease-out, opacity 200ms',
-            }}
-          />
+          {isVideo ? (
+            <video
+              src={item.fullUrl}
+              controls
+              autoPlay
+              className="h-full w-full object-contain p-4"
+              style={{ pointerEvents: 'auto' }}
+            />
+          ) : (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              ref={imgRef}
+              src={item.fullUrl}
+              alt={item.filename}
+              onLoad={() => setLoaded(true)}
+              draggable={false}
+              // h/w-full + object-contain => photo always scales to fill the
+              // viewport while staying fully visible (letterboxed), like Google Photos.
+              className="h-full w-full object-contain p-4"
+              style={{
+                transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
+                cursor: zoomed ? 'grab' : 'zoom-in',
+                opacity: loaded ? 1 : 0,
+                pointerEvents: 'auto',
+                transition: dragRef.current ? 'none' : 'transform 120ms ease-out, opacity 200ms',
+              }}
+            />
+          )}
         </div>
 
         {/* Prev / next */}

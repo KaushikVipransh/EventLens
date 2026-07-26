@@ -138,10 +138,19 @@ its **Root Directory / start command** and **variables** as below. For api + wor
 - **Build command:** `npm ci`
 - **Start command:** `npx tsx apps/worker/src/index.ts`
 - **Networking:** none (no public domain — it's a background consumer).
+- **System packages (required for video + HEIC):** the worker shells out to
+  **`ffmpeg`/`ffprobe`** to sample video frames, and `sharp` needs **`libheif`**
+  to decode HEIC/iPhone photos. Add them to the build environment:
+  - **Railway (Nixpacks):** set a variable `NIXPACKS_PKGS=ffmpeg libheif` (or add a
+    `nixpacks.toml` with `[phases.setup] aptPkgs = ["ffmpeg", "libheif1"]`).
+  - **Docker-based host:** `apt-get install -y ffmpeg libheif1` in the image.
+  - Without ffmpeg, photo processing still works; only **video** jobs will fail.
 - **Variables:** same `DATABASE_URL`, `REDIS_URL`, all `S3_*`, plus:
   ```
   FACE_SERVICE_URL=<face service internal URL from 4c>
   FACE_MATCH_THRESHOLD=0.5
+  INGEST_MAX_EDGE=2560        # storage-saver (0 to keep originals)
+  INGEST_QUALITY=82
   ```
 
 ### 4c. `face` service (Docker)

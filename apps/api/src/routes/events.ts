@@ -155,6 +155,8 @@ eventsRouter.get(
         status: true,
         faceCount: true,
         albumId: true,
+        mediaType: true,
+        durationSeconds: true,
         storageKey: true,
         thumbStorageKey: true,
       },

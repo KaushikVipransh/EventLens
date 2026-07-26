@@ -91,17 +91,23 @@ export interface ShareLink {
   createdAt: string;
   url: string;
 }
+export type MediaType = 'photo' | 'video';
+
 export interface GalleryPhoto {
   id: string;
   filename: string;
   faceCount: number;
+  mediaType: MediaType;
+  durationSeconds?: number | null;
   url: string;
-  /** Full-resolution presigned URL, used by the lightbox on open. */
+  /** Full-resolution image, or the video file for playback, opened in the lightbox. */
   fullUrl: string;
 }
 export interface SharePhoto {
   id: string;
   filename: string;
+  mediaType: MediaType;
+  durationSeconds?: number | null;
   url: string;
   fullUrl: string;
 }
@@ -111,6 +117,8 @@ export interface OrganizerPhoto {
   status: 'pending' | 'processing' | 'processed' | 'failed';
   faceCount: number;
   albumId: string | null;
+  mediaType: MediaType;
+  durationSeconds?: number | null;
   url: string;
   fullUrl: string;
 }
@@ -118,8 +126,9 @@ export interface SearchMatch {
   id: string;
   filename: string;
   distance: number;
+  mediaType: MediaType;
   url: string;
-  /** Full-resolution presigned URL, used by the lightbox on open. */
+  /** Full-resolution image, or the video file for playback, opened in the lightbox. */
   fullUrl: string;
 }
 

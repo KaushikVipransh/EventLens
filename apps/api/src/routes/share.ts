@@ -54,7 +54,14 @@ shareRouter.get(
       orderBy: desc(schema.photos.createdAt),
       limit,
       offset: (page - 1) * limit,
-      columns: { id: true, filename: true, storageKey: true, thumbStorageKey: true },
+      columns: {
+        id: true,
+        filename: true,
+        mediaType: true,
+        durationSeconds: true,
+        storageKey: true,
+        thumbStorageKey: true,
+      },
     });
 
     const photos = await Promise.all(

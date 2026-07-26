@@ -9,6 +9,9 @@ const PHOTO_STATUS = ['pending', 'processing', 'processed', 'failed'] as const;
 
 export const photoStatusEnum = pgEnum('photo_status', PHOTO_STATUS);
 
+const MEDIA_TYPE = ['photo', 'video'] as const;
+export const mediaTypeEnum = pgEnum('media_type', MEDIA_TYPE);
+
 /** An uploaded event photo and its processing state. */
 export const photos = pgTable('photos', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -21,8 +24,13 @@ export const photos = pgTable('photos', {
   // Optional album this photo belongs to; null = ungrouped ("All photos").
   albumId: uuid('album_id').references(() => albums.id, { onDelete: 'set null' }),
   storageKey: text('storage_key').notNull(),
-  // Small resized preview for gallery grids (nullable until generated).
+  // Small resized preview for gallery grids (nullable until generated). For
+  // videos this is a poster frame.
   thumbStorageKey: text('thumb_storage_key'),
+  // 'photo' or 'video' — videos are frame-sampled for face detection.
+  mediaType: mediaTypeEnum('media_type').notNull().default('photo'),
+  // Video duration in seconds (null for photos).
+  durationSeconds: integer('duration_seconds'),
   filename: text('filename').notNull(),
   contentType: text('content_type').notNull(),
   size: integer('size').notNull(),
