@@ -13,6 +13,7 @@ import {
 } from '@/lib/api';
 import { Card, Chip, CopyButton, GradientBlob, Nav, PillButton } from '@/components/ui';
 import { EventPhotos } from '@/components/EventPhotos';
+import { QRCode } from '@/components/QRCode';
 
 export default function EventDetailPage() {
   const router = useRouter();
@@ -115,10 +116,20 @@ export default function EventDetailPage() {
           <p className="mt-1 text-sm text-ink/60">
             Share this link (or the code) with guests so they can find their photos.
           </p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Chip color="#F0B429">code {event.attendeeCode}</Chip>
-            <code className="rounded-lg bg-cream px-3 py-1.5 text-xs">{attendeeLink}</code>
-            <CopyButton value={attendeeLink} label="Copy attendee link" />
+          <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Chip color="#F0B429">code {event.attendeeCode}</Chip>
+              <code className="rounded-lg bg-cream px-3 py-1.5 text-xs">{attendeeLink}</code>
+              <CopyButton value={attendeeLink} label="Copy attendee link" />
+            </div>
+            {attendeeLink && (
+              <div className="shrink-0">
+                <QRCode value={attendeeLink} />
+                <p className="mt-1 max-w-[160px] text-center text-[11px] text-ink/50">
+                  Print or display — guests scan to open the gallery.
+                </p>
+              </div>
+            )}
           </div>
         </Card>
 
