@@ -23,6 +23,12 @@ export const createEventSchema = z.object({
 });
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 
+// ── Albums ────────────────────────────────────────────────────────────────────
+export const createAlbumSchema = z.object({
+  name: z.string().min(1).max(120),
+});
+export type CreateAlbumInput = z.infer<typeof createAlbumSchema>;
+
 // ── Photographers ─────────────────────────────────────────────────────────────
 export const createPhotographerSchema = z.object({
   name: z.string().min(1).max(120),
@@ -46,6 +52,8 @@ export const presignRequestSchema = z.object({
 export type PresignRequestInput = z.infer<typeof presignRequestSchema>;
 
 export const uploadCompleteSchema = z.object({
+  // Optional album to place this whole batch into (null/omitted = ungrouped).
+  albumId: z.string().uuid().optional(),
   photos: z
     .array(
       z.object({

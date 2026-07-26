@@ -1,7 +1,7 @@
 import { db, schema } from '@eventlens/db';
 import { enqueuePhotoJob } from '@eventlens/queue';
 import { presignRequestSchema, uploadCompleteSchema } from '@eventlens/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Router } from 'express';
 import { z } from 'zod';
 import { requirePhotographer } from '../auth/middleware.js';
@@ -32,11 +32,19 @@ uploadsRouter.post(
     });
     if (!event) throw notFound('Event not found');
 
+    // Albums the photographer can upload into.
+    const albums = await db.query.albums.findMany({
+      where: eq(schema.albums.eventId, event.id),
+      columns: { id: true, name: true },
+      orderBy: (a, { desc }) => desc(a.createdAt),
+    });
+
     const token = signPhotographerToken(photographer.id, photographer.eventId);
     res.json({
       token,
       photographer: { id: photographer.id, name: photographer.name },
       event,
+      albums,
     });
   }),
 );
@@ -69,8 +77,19 @@ uploadsRouter.post(
   '/uploads/complete',
   requirePhotographer,
   asyncHandler(async (req, res) => {
-    const { photos } = parse(uploadCompleteSchema, req.body);
+    const { photos, albumId } = parse(uploadCompleteSchema, req.body);
     const { photographerId, eventId } = req.photographer!;
+
+    // If an album was chosen, ensure it belongs to this event before using it.
+    let validAlbumId: string | null = null;
+    if (albumId) {
+      const album = await db.query.albums.findFirst({
+        where: and(eq(schema.albums.id, albumId), eq(schema.albums.eventId, eventId)),
+        columns: { id: true },
+      });
+      if (!album) throw notFound('Album not found for this event');
+      validAlbumId = album.id;
+    }
 
     const inserted = await db
       .insert(schema.photos)
@@ -78,6 +97,7 @@ uploadsRouter.post(
         photos.map((p) => ({
           eventId,
           photographerId,
+          albumId: validAlbumId,
           storageKey: p.storageKey,
           filename: p.filename,
           contentType: p.contentType,

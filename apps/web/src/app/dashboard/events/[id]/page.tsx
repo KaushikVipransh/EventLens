@@ -7,6 +7,7 @@ import {
   api,
   ApiError,
   orgToken,
+  type Album,
   type EventRecord,
   type Photographer,
 } from '@/lib/api';
@@ -19,8 +20,10 @@ export default function EventDetailPage() {
   const [token, setToken] = useState<string | null>(null);
   const [event, setEvent] = useState<EventRecord | null>(null);
   const [photographers, setPhotographers] = useState<Photographer[]>([]);
+  const [albums, setAlbums] = useState<Album[]>([]);
   const [attendeeLink, setAttendeeLink] = useState('');
   const [name, setName] = useState('');
+  const [albumName, setAlbumName] = useState('');
 
   useEffect(() => {
     const t = orgToken.get();
@@ -29,11 +32,17 @@ export default function EventDetailPage() {
       return;
     }
     setToken(t);
-    Promise.all([api.getEvent(t, id), api.listPhotographers(t, id), api.attendeeLink(t, id)])
-      .then(([e, p, a]) => {
+    Promise.all([
+      api.getEvent(t, id),
+      api.listPhotographers(t, id),
+      api.attendeeLink(t, id),
+      api.listAlbums(t, id),
+    ])
+      .then(([e, p, a, al]) => {
         setEvent(e.event);
         setPhotographers(p.photographers);
         setAttendeeLink(a.attendeeLink);
+        setAlbums(al.albums);
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) router.replace('/login');
@@ -46,6 +55,20 @@ export default function EventDetailPage() {
     const { photographer, uploadLink } = await api.addPhotographer(token, id, { name });
     setPhotographers([{ ...photographer, uploadLink }, ...photographers]);
     setName('');
+  }
+
+  async function addAlbum(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token || !albumName.trim()) return;
+    const { album } = await api.createAlbum(token, id, { name: albumName.trim() });
+    setAlbums([{ ...album, photoCount: 0 }, ...albums]);
+    setAlbumName('');
+  }
+
+  async function removeAlbum(albumId: string) {
+    if (!token) return;
+    await api.deleteAlbum(token, id, albumId);
+    setAlbums((prev) => prev.filter((a) => a.id !== albumId));
   }
 
   const navRight = (
@@ -96,6 +119,47 @@ export default function EventDetailPage() {
             <code className="rounded-lg bg-cream px-3 py-1.5 text-xs">{attendeeLink}</code>
             <CopyButton value={attendeeLink} label="Copy attendee link" />
           </div>
+        </Card>
+
+        <Card className="mt-6">
+          <h2 className="text-lg font-semibold">Albums</h2>
+          <p className="mt-1 text-sm text-ink/60">
+            Group photos (e.g. “Ceremony”, “Reception”). Photographers pick an album when they
+            upload, and guests can browse by album.
+          </p>
+          <form onSubmit={addAlbum} className="mt-4 flex gap-3">
+            <input
+              value={albumName}
+              onChange={(e) => setAlbumName(e.target.value)}
+              placeholder="Album name"
+              className="flex-1 rounded-xl border border-ink/15 bg-cream-light px-4 py-2.5 text-sm outline-none focus:border-ink/40"
+            />
+            <PillButton type="submit">Create</PillButton>
+          </form>
+
+          <ul className="mt-4 space-y-3">
+            {albums.map((a) => (
+              <li
+                key={a.id}
+                className="flex flex-wrap items-center gap-3 rounded-xl bg-cream px-4 py-3"
+              >
+                <Chip color="#4FA3A5">{a.name}</Chip>
+                <span className="flex-1 text-xs text-ink/50">{a.photoCount} photo(s)</span>
+                <button
+                  onClick={() => removeAlbum(a.id)}
+                  className="text-xs font-medium text-coral hover:opacity-70"
+                  data-hover
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+            {albums.length === 0 && (
+              <li className="text-sm text-ink/50">
+                No albums yet — photos without an album show under “All photos”.
+              </li>
+            )}
+          </ul>
         </Card>
 
         <Card className="mt-6">

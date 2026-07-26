@@ -1,6 +1,6 @@
 import { db, schema } from '@eventlens/db';
-import { createEventSchema, createPhotographerSchema } from '@eventlens/shared';
-import { and, desc, eq } from 'drizzle-orm';
+import { createAlbumSchema, createEventSchema, createPhotographerSchema } from '@eventlens/shared';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { Router, type Request } from 'express';
 import { config } from '../config.js';
 import { requireOrganizer } from '../auth/middleware.js';
@@ -61,6 +61,57 @@ eventsRouter.get(
   asyncHandler(async (req, res) => {
     const event = await getOwnedEvent(req);
     res.json({ event });
+  }),
+);
+
+// ── Albums (per-event photo groupings) ────────────────────────────────────────
+eventsRouter.post(
+  '/:id/albums',
+  asyncHandler(async (req, res) => {
+    const event = await getOwnedEvent(req);
+    const input = parse(createAlbumSchema, req.body);
+    const [album] = await db
+      .insert(schema.albums)
+      .values({ eventId: event.id, name: input.name })
+      .returning();
+    res.status(201).json({ album });
+  }),
+);
+
+eventsRouter.get(
+  '/:id/albums',
+  asyncHandler(async (req, res) => {
+    const event = await getOwnedEvent(req);
+    const albums = await db
+      .select({
+        id: schema.albums.id,
+        name: schema.albums.name,
+        createdAt: schema.albums.createdAt,
+        photoCount: sql<number>`count(${schema.photos.id})::int`,
+      })
+      .from(schema.albums)
+      .leftJoin(schema.photos, eq(schema.photos.albumId, schema.albums.id))
+      .where(eq(schema.albums.eventId, event.id))
+      .groupBy(schema.albums.id)
+      .orderBy(desc(schema.albums.createdAt));
+    res.json({ albums });
+  }),
+);
+
+eventsRouter.delete(
+  '/:id/albums/:albumId',
+  asyncHandler(async (req, res) => {
+    const event = await getOwnedEvent(req);
+    // Photos keep existing; their album_id is set null by the FK (become ungrouped).
+    await db
+      .delete(schema.albums)
+      .where(
+        and(
+          eq(schema.albums.id, String(req.params.albumId)),
+          eq(schema.albums.eventId, event.id),
+        ),
+      );
+    res.status(204).end();
   }),
 );
 

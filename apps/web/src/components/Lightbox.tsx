@@ -42,16 +42,18 @@ export function Lightbox({
   const [view, setView] = useState<View>(RESET);
   const [loaded, setLoaded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const pinchRef = useRef<{ dist: number } | null>(null);
 
   const item = items[index];
   const zoomed = view.scale > 1;
 
-  // Reset zoom/pan whenever we move to a different photo.
+  // Reset zoom/pan whenever we move to a different photo. If the new image is
+  // already cached, onLoad won't fire — detect .complete so it stays visible.
   useEffect(() => {
     setView(RESET);
-    setLoaded(false);
+    setLoaded(imgRef.current?.complete ?? false);
   }, [index]);
 
   const go = useCallback(
@@ -204,7 +206,7 @@ export function Lightbox({
       {/* Stage */}
       <div
         ref={containerRef}
-        className="relative flex-1 select-none overflow-hidden"
+        className="relative min-h-0 flex-1 select-none overflow-hidden"
         onWheel={onWheel}
         onDoubleClick={onDoubleClick}
         onPointerDown={onPointerDown}
@@ -222,14 +224,17 @@ export function Lightbox({
         {!loaded && (
           <div className="absolute inset-0 grid place-items-center text-white/40">Loading…</div>
         )}
-        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+        <div className="pointer-events-none absolute inset-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
+            ref={imgRef}
             src={item.fullUrl}
             alt={item.filename}
             onLoad={() => setLoaded(true)}
             draggable={false}
-            className="max-h-full max-w-full object-contain transition-[opacity] duration-200"
+            // h/w-full + object-contain => photo always scales to fill the
+            // viewport while staying fully visible (letterboxed), like Google Photos.
+            className="h-full w-full object-contain p-4"
             style={{
               transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
               cursor: zoomed ? 'grab' : 'zoom-in',

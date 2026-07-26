@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api, ApiError, type GalleryPhoto, type SearchMatch } from '@/lib/api';
+import { api, ApiError, type Album, type GalleryPhoto, type SearchMatch } from '@/lib/api';
 import { SelfieCapture } from '@/components/SelfieCapture';
 import { Lightbox, type LightboxItem } from '@/components/Lightbox';
 import { GradientBlob, Nav, PillButton, Mark } from '@/components/ui';
@@ -23,6 +23,9 @@ export default function AttendeeGalleryPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [albumFilter, setAlbumFilter] = useState<string | undefined>(undefined);
+
   const [showCamera, setShowCamera] = useState(false);
   const [searching, setSearching] = useState(false);
   const [matches, setMatches] = useState<SearchMatch[] | null>(null);
@@ -38,21 +41,34 @@ export default function AttendeeGalleryPage() {
       .then(async ({ token, event }) => {
         setToken(token);
         setEventName(event.name);
-        const { photos } = await api.galleryPhotos(token, 1, PAGE_SIZE);
+        const [{ photos }, { albums }] = await Promise.all([
+          api.galleryPhotos(token, 1, PAGE_SIZE),
+          api.attendeeAlbums(token),
+        ]);
         setPhotos(photos);
         setHasMore(photos.length === PAGE_SIZE);
+        setAlbums(albums.filter((a) => a.photoCount > 0));
       })
       .catch((err) =>
         setError(err instanceof ApiError ? err.message : 'Could not load this event.'),
       );
   }, [code]);
 
+  async function selectAlbum(id: string | undefined) {
+    if (!token) return;
+    setAlbumFilter(id);
+    setPage(1);
+    const { photos } = await api.galleryPhotos(token, 1, PAGE_SIZE, id);
+    setPhotos(photos);
+    setHasMore(photos.length === PAGE_SIZE);
+  }
+
   async function loadMore() {
     if (!token || loadingMore) return;
     setLoadingMore(true);
     try {
       const next = page + 1;
-      const { photos: more } = await api.galleryPhotos(token, next, PAGE_SIZE);
+      const { photos: more } = await api.galleryPhotos(token, next, PAGE_SIZE, albumFilter);
       setPhotos((prev) => [...prev, ...more]);
       setPage(next);
       setHasMore(more.length === PAGE_SIZE);
@@ -124,6 +140,22 @@ export default function AttendeeGalleryPage() {
       {/* ── All photos ─────────────────────────────────────────── */}
       {tab === 'all' && (
         <div className="relative z-10 mx-auto max-w-6xl px-6">
+          {albums.length > 0 && (
+            <div className="mt-6 flex flex-wrap gap-2">
+              <FilterChip active={!albumFilter} onClick={() => selectAlbum(undefined)}>
+                All photos
+              </FilterChip>
+              {albums.map((a) => (
+                <FilterChip
+                  key={a.id}
+                  active={albumFilter === a.id}
+                  onClick={() => selectAlbum(a.id)}
+                >
+                  {a.name} <span className="opacity-50">{a.photoCount}</span>
+                </FilterChip>
+              ))}
+            </div>
+          )}
           <PhotoGrid
             items={photos}
             token={token}
@@ -246,6 +278,29 @@ function TabButton({
       data-hover
       className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition ${
         active ? 'bg-ink text-cream shadow-lift' : 'text-ink/60 hover:text-ink'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-hover
+      className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+        active ? 'bg-ink text-cream' : 'bg-panel/70 text-ink/70 hover:text-ink'
       }`}
     >
       {children}

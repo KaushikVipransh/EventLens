@@ -61,6 +61,11 @@ export interface Photographer {
   uploadToken: string;
   uploadLink: string;
 }
+export interface Album {
+  id: string;
+  name: string;
+  photoCount: number;
+}
 export interface GalleryPhoto {
   id: string;
   filename: string;
@@ -102,12 +107,21 @@ export const api = {
   attendeeLink: (token: string, id: string) =>
     request<{ code: string; attendeeLink: string }>(`/events/${id}/attendee-link`, { token }),
 
+  // Albums (organizer)
+  createAlbum: (token: string, id: string, body: { name: string }) =>
+    request<{ album: Album }>(`/events/${id}/albums`, { method: 'POST', body, token }),
+  listAlbums: (token: string, id: string) =>
+    request<{ albums: Album[] }>(`/events/${id}/albums`, { token }),
+  deleteAlbum: (token: string, id: string, albumId: string) =>
+    request<null>(`/events/${id}/albums/${albumId}`, { method: 'DELETE', token }),
+
   // Uploads (photographer)
   uploadSession: (uploadToken: string) =>
     request<{
       token: string;
       photographer: { id: string; name: string };
       event: { id: string; name: string; date: string | null };
+      albums: { id: string; name: string }[];
     }>('/uploads/session', { method: 'POST', body: { uploadToken } }),
   presign: (
     token: string,
@@ -120,7 +134,13 @@ export const api = {
   complete: (
     token: string,
     photos: { storageKey: string; filename: string; contentType: string; size: number }[],
-  ) => request<{ queued: number }>('/uploads/complete', { method: 'POST', body: { photos }, token }),
+    albumId?: string,
+  ) =>
+    request<{ queued: number }>('/uploads/complete', {
+      method: 'POST',
+      body: { photos, ...(albumId ? { albumId } : {}) },
+      token,
+    }),
 
   // Attendee
   attendeeSession: (code: string) =>
@@ -128,11 +148,15 @@ export const api = {
       '/attendee/session',
       { method: 'POST', body: { code } },
     ),
-  galleryPhotos: (token: string, page = 1, limit = 40) =>
+  galleryPhotos: (token: string, page = 1, limit = 40, albumId?: string) =>
     request<{ page: number; limit: number; photos: GalleryPhoto[] }>(
-      `/attendee/photos?page=${page}&limit=${limit}`,
+      `/attendee/photos?page=${page}&limit=${limit}${albumId ? `&albumId=${albumId}` : ''}`,
       { token },
     ),
+
+  /** Albums (with processed-photo counts) for the attendee's event. */
+  attendeeAlbums: (token: string) =>
+    request<{ albums: Album[] }>('/attendee/albums', { token }),
 
   /** Send a selfie (image blob) and get matching photos. */
   attendeeSearch: async (token: string, image: Blob) => {

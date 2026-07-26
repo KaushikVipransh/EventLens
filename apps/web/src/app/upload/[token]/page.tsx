@@ -12,6 +12,7 @@ interface Session {
   token: string;
   photographer: { id: string; name: string };
   event: { id: string; name: string; date: string | null };
+  albums: { id: string; name: string }[];
 }
 
 export default function UploadPage() {
@@ -19,6 +20,7 @@ export default function UploadPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [albumId, setAlbumId] = useState('');
   const [done, setDone] = useState<number | null>(null);
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -63,6 +65,7 @@ export default function UploadPage() {
           contentType: files[i]!.type,
           size: files[i]!.size,
         })),
+        albumId || undefined,
       );
       setDone(uploads.length);
       setFiles([]);
@@ -119,6 +122,24 @@ export default function UploadPage() {
               <p className="mt-3 text-sm text-ink/60">{files.length} photo(s) selected</p>
             )}
           </div>
+
+          {session && session.albums.length > 0 && (
+            <div className="mt-4">
+              <label className="text-sm font-medium text-ink/70">Album</label>
+              <select
+                value={albumId}
+                onChange={(e) => setAlbumId(e.target.value)}
+                className="mt-1 block w-full rounded-xl border border-ink/15 bg-cream-light px-4 py-2.5 text-sm outline-none focus:border-ink/40"
+              >
+                <option value="">All photos (no album)</option>
+                {session.albums.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {busy && (
             <div className="mt-4">

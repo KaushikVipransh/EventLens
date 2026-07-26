@@ -1,7 +1,7 @@
 import { db, queryClient, schema } from '@eventlens/db';
 import { attendeeAccessSchema, detectEmbedResponseSchema } from '@eventlens/shared';
 import archiver from 'archiver';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import express, { Router } from 'express';
 import { z } from 'zod';
 import { config } from '../config.js';
@@ -30,7 +30,30 @@ galleryRouter.post(
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(40),
+  // Optional: restrict to one album; omitted = every photo in the event.
+  albumId: z.string().uuid().optional(),
 });
+
+/** Albums for the token's event, each with its processed-photo count. */
+galleryRouter.get(
+  '/attendee/albums',
+  requireAttendee,
+  asyncHandler(async (req, res) => {
+    const { eventId } = req.attendee!;
+    const albums = await db
+      .select({
+        id: schema.albums.id,
+        name: schema.albums.name,
+        photoCount: sql<number>`(count(${schema.photos.id}) filter (where ${schema.photos.status} = 'processed'))::int`,
+      })
+      .from(schema.albums)
+      .leftJoin(schema.photos, eq(schema.photos.albumId, schema.albums.id))
+      .where(eq(schema.albums.eventId, eventId))
+      .groupBy(schema.albums.id)
+      .orderBy(desc(schema.albums.createdAt));
+    res.json({ albums });
+  }),
+);
 
 /** Paginated gallery of processed photos for the token's event. */
 galleryRouter.get(
@@ -43,7 +66,11 @@ galleryRouter.get(
     const { eventId } = req.attendee!;
 
     const rows = await db.query.photos.findMany({
-      where: and(eq(schema.photos.eventId, eventId), eq(schema.photos.status, 'processed')),
+      where: and(
+        eq(schema.photos.eventId, eventId),
+        eq(schema.photos.status, 'processed'),
+        parsed.albumId ? eq(schema.photos.albumId, parsed.albumId) : undefined,
+      ),
       orderBy: desc(schema.photos.createdAt),
       limit,
       offset: (page - 1) * limit,

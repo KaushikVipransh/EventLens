@@ -1,4 +1,5 @@
 import { integer, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { albums } from './albums';
 import { events } from './events';
 import { photographers } from './photographers';
 
@@ -17,6 +18,8 @@ export const photos = pgTable('photos', {
   photographerId: uuid('photographer_id').references(() => photographers.id, {
     onDelete: 'set null',
   }),
+  // Optional album this photo belongs to; null = ungrouped ("All photos").
+  albumId: uuid('album_id').references(() => albums.id, { onDelete: 'set null' }),
   storageKey: text('storage_key').notNull(),
   // Small resized preview for gallery grids (nullable until generated).
   thumbStorageKey: text('thumb_storage_key'),
