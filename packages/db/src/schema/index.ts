@@ -4,3 +4,4 @@ export * from './albums';
 export * from './photographers';
 export * from './photos';
 export * from './faces';
+export * from './share-links';

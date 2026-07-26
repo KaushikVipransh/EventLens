@@ -1,12 +1,17 @@
 import { db, schema } from '@eventlens/db';
-import { createAlbumSchema, createEventSchema, createPhotographerSchema } from '@eventlens/shared';
+import {
+  createAlbumSchema,
+  createEventSchema,
+  createPhotographerSchema,
+  createShareLinkSchema,
+} from '@eventlens/shared';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { config } from '../config.js';
 import { requireOrganizer } from '../auth/middleware.js';
 import { asyncHandler, notFound, parse } from '../http.js';
-import { makeAttendeeCode, makeUploadToken } from '../ids.js';
+import { makeAttendeeCode, makeShareToken, makeUploadToken } from '../ids.js';
 import { deleteObject, presignGet } from '../storage.js';
 
 export const eventsRouter = Router();
@@ -28,6 +33,10 @@ async function getOwnedEvent(req: Request) {
 
 function uploadLink(uploadToken: string): string {
   return `${config.WEB_BASE_URL}/upload/${uploadToken}`;
+}
+
+function shareUrl(token: string): string {
+  return `${config.WEB_BASE_URL}/s/${token}`;
 }
 
 eventsRouter.post(
@@ -179,6 +188,77 @@ eventsRouter.delete(
     await db.delete(schema.photos).where(eq(schema.photos.id, photo.id));
     await deleteObject(photo.storageKey);
     if (photo.thumbStorageKey) await deleteObject(photo.thumbStorageKey);
+    res.status(204).end();
+  }),
+);
+
+// ── Share links (public read-only links to an event or album) ─────────────────
+eventsRouter.post(
+  '/:id/share',
+  asyncHandler(async (req, res) => {
+    const event = await getOwnedEvent(req);
+    const input = parse(createShareLinkSchema, req.body);
+
+    if (input.albumId) {
+      const album = await db.query.albums.findFirst({
+        where: and(eq(schema.albums.id, input.albumId), eq(schema.albums.eventId, event.id)),
+        columns: { id: true },
+      });
+      if (!album) throw notFound('Album not found for this event');
+    }
+
+    const expiresAt = input.expiresInDays
+      ? new Date(Date.now() + input.expiresInDays * 86_400_000)
+      : null;
+
+    const [link] = await db
+      .insert(schema.shareLinks)
+      .values({
+        eventId: event.id,
+        albumId: input.albumId ?? null,
+        token: makeShareToken(),
+        allowDownload: input.allowDownload,
+        expiresAt,
+      })
+      .returning();
+    res.status(201).json({ link: { ...link, url: shareUrl(link!.token) } });
+  }),
+);
+
+eventsRouter.get(
+  '/:id/share',
+  asyncHandler(async (req, res) => {
+    const event = await getOwnedEvent(req);
+    const rows = await db
+      .select({
+        id: schema.shareLinks.id,
+        token: schema.shareLinks.token,
+        albumId: schema.shareLinks.albumId,
+        albumName: schema.albums.name,
+        allowDownload: schema.shareLinks.allowDownload,
+        expiresAt: schema.shareLinks.expiresAt,
+        createdAt: schema.shareLinks.createdAt,
+      })
+      .from(schema.shareLinks)
+      .leftJoin(schema.albums, eq(schema.albums.id, schema.shareLinks.albumId))
+      .where(eq(schema.shareLinks.eventId, event.id))
+      .orderBy(desc(schema.shareLinks.createdAt));
+    res.json({ links: rows.map((r) => ({ ...r, url: shareUrl(r.token) })) });
+  }),
+);
+
+eventsRouter.delete(
+  '/:id/share/:linkId',
+  asyncHandler(async (req, res) => {
+    const event = await getOwnedEvent(req);
+    await db
+      .delete(schema.shareLinks)
+      .where(
+        and(
+          eq(schema.shareLinks.id, String(req.params.linkId)),
+          eq(schema.shareLinks.eventId, event.id),
+        ),
+      );
     res.status(204).end();
   }),
 );

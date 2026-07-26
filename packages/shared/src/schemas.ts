@@ -29,6 +29,16 @@ export const createAlbumSchema = z.object({
 });
 export type CreateAlbumInput = z.infer<typeof createAlbumSchema>;
 
+// ── Share links ───────────────────────────────────────────────────────────────
+export const createShareLinkSchema = z.object({
+  // Omitted = share the whole event; otherwise scope to one album.
+  albumId: z.string().uuid().optional(),
+  allowDownload: z.boolean().default(true),
+  // Omitted = never expires.
+  expiresInDays: z.number().int().positive().max(365).optional(),
+});
+export type CreateShareLinkInput = z.infer<typeof createShareLinkSchema>;
+
 // ── Photographers ─────────────────────────────────────────────────────────────
 export const createPhotographerSchema = z.object({
   name: z.string().min(1).max(120),

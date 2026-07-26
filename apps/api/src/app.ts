@@ -8,6 +8,7 @@ import { authRouter } from './routes/auth.js';
 import { eventsRouter } from './routes/events.js';
 import { galleryRouter } from './routes/gallery.js';
 import { healthRouter } from './routes/health.js';
+import { shareRouter } from './routes/share.js';
 import { uploadsRouter } from './routes/uploads.js';
 
 export function createApp(): Express {
@@ -22,6 +23,7 @@ export function createApp(): Express {
   app.use('/events', eventsRouter);
   app.use(uploadsRouter);
   app.use(galleryRouter);
+  app.use(shareRouter);
   // Feature routers are mounted here in later phases.
 
   app.use(notFoundHandler);

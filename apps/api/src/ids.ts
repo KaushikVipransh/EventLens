@@ -8,3 +8,9 @@ export const makeUploadToken = customAlphabet(
   '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
   24,
 );
+
+/** Opaque, URL-safe token embedded in a public share link. */
+export const makeShareToken = customAlphabet(
+  '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  20,
+);

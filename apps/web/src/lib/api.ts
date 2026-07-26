@@ -66,12 +66,28 @@ export interface Album {
   name: string;
   photoCount: number;
 }
+export interface ShareLink {
+  id: string;
+  token: string;
+  albumId: string | null;
+  albumName: string | null;
+  allowDownload: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+  url: string;
+}
 export interface GalleryPhoto {
   id: string;
   filename: string;
   faceCount: number;
   url: string;
   /** Full-resolution presigned URL, used by the lightbox on open. */
+  fullUrl: string;
+}
+export interface SharePhoto {
+  id: string;
+  filename: string;
+  url: string;
   fullUrl: string;
 }
 export interface OrganizerPhoto {
@@ -132,6 +148,42 @@ export const api = {
     ),
   deleteEventPhoto: (token: string, id: string, photoId: string) =>
     request<null>(`/events/${id}/photos/${photoId}`, { method: 'DELETE', token }),
+
+  // Share links (organizer)
+  createShareLink: (
+    token: string,
+    id: string,
+    body: { albumId?: string; allowDownload: boolean; expiresInDays?: number },
+  ) => request<{ link: ShareLink }>(`/events/${id}/share`, { method: 'POST', body, token }),
+  listShareLinks: (token: string, id: string) =>
+    request<{ links: ShareLink[] }>(`/events/${id}/share`, { token }),
+  deleteShareLink: (token: string, id: string, linkId: string) =>
+    request<null>(`/events/${id}/share/${linkId}`, { method: 'DELETE', token }),
+
+  // Share links (public — the token is the credential, no auth header)
+  getShare: (token: string, page = 1, limit = 40) =>
+    request<{
+      event: { name: string };
+      album: { name: string } | null;
+      allowDownload: boolean;
+      page: number;
+      limit: number;
+      photos: SharePhoto[];
+    }>(`/share/${token}?page=${page}&limit=${limit}`),
+  shareDownloadPhoto: async (token: string, photoId: string, filename: string) => {
+    const res = await fetch(`${BASE}/share/${token}/photos/${photoId}/download`);
+    if (!res.ok) throw new ApiError(res.status, 'Download failed');
+    saveBlob(await res.blob(), filename);
+  },
+  shareDownloadBatch: async (token: string, photoIds: string[]) => {
+    const res = await fetch(`${BASE}/share/${token}/download-batch`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ photoIds }),
+    });
+    if (!res.ok) throw new ApiError(res.status, 'Download failed');
+    saveBlob(await res.blob(), 'eventlens-photos.zip');
+  },
 
   // Uploads (photographer)
   uploadSession: (uploadToken: string) =>

@@ -32,12 +32,16 @@ export function Lightbox({
   onClose,
   onNavigate,
   token,
+  onDownload,
 }: {
   items: LightboxItem[];
   index: number;
   onClose: () => void;
   onNavigate: (next: number) => void;
   token: string | null;
+  /** Custom download handler; when omitted, falls back to the attendee endpoint
+   *  (requires `token`). Pass this for share/other contexts. */
+  onDownload?: (item: LightboxItem) => void;
 }) {
   const [view, setView] = useState<View>(RESET);
   const [loaded, setLoaded] = useState(false);
@@ -189,10 +193,12 @@ export function Lightbox({
           >
             +
           </ToolbarButton>
-          {token && (
+          {(onDownload || token) && (
             <ToolbarButton
               label="Download"
-              onClick={() => api.downloadPhoto(token, item.id, item.filename)}
+              onClick={() =>
+                onDownload ? onDownload(item) : token && api.downloadPhoto(token, item.id, item.filename)
+              }
             >
               ↓
             </ToolbarButton>

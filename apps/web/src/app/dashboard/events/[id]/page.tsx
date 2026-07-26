@@ -10,6 +10,7 @@ import {
   type Album,
   type EventRecord,
   type Photographer,
+  type ShareLink,
 } from '@/lib/api';
 import { Card, Chip, CopyButton, GradientBlob, Nav, PillButton } from '@/components/ui';
 import { EventPhotos } from '@/components/EventPhotos';
@@ -23,9 +24,13 @@ export default function EventDetailPage() {
   const [event, setEvent] = useState<EventRecord | null>(null);
   const [photographers, setPhotographers] = useState<Photographer[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
+  const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [attendeeLink, setAttendeeLink] = useState('');
   const [name, setName] = useState('');
   const [albumName, setAlbumName] = useState('');
+  const [shareAlbum, setShareAlbum] = useState('');
+  const [shareDownload, setShareDownload] = useState(true);
+  const [shareExpiry, setShareExpiry] = useState('0'); // days; 0 = never
 
   useEffect(() => {
     const t = orgToken.get();
@@ -39,12 +44,14 @@ export default function EventDetailPage() {
       api.listPhotographers(t, id),
       api.attendeeLink(t, id),
       api.listAlbums(t, id),
+      api.listShareLinks(t, id),
     ])
-      .then(([e, p, a, al]) => {
+      .then(([e, p, a, al, sl]) => {
         setEvent(e.event);
         setPhotographers(p.photographers);
         setAttendeeLink(a.attendeeLink);
         setAlbums(al.albums);
+        setShareLinks(sl.links);
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) router.replace('/login');
@@ -71,6 +78,24 @@ export default function EventDetailPage() {
     if (!token) return;
     await api.deleteAlbum(token, id, albumId);
     setAlbums((prev) => prev.filter((a) => a.id !== albumId));
+  }
+
+  async function addShareLink(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token) return;
+    const days = Number(shareExpiry);
+    const { link } = await api.createShareLink(token, id, {
+      albumId: shareAlbum || undefined,
+      allowDownload: shareDownload,
+      expiresInDays: days > 0 ? days : undefined,
+    });
+    setShareLinks([link, ...shareLinks]);
+  }
+
+  async function removeShareLink(linkId: string) {
+    if (!token) return;
+    await api.deleteShareLink(token, id, linkId);
+    setShareLinks((prev) => prev.filter((l) => l.id !== linkId));
   }
 
   const navRight = (
@@ -170,6 +195,70 @@ export default function EventDetailPage() {
               <li className="text-sm text-ink/50">
                 No albums yet — photos without an album show under “All photos”.
               </li>
+            )}
+          </ul>
+        </Card>
+
+        <Card className="mt-6">
+          <h2 className="text-lg font-semibold">Share links</h2>
+          <p className="mt-1 text-sm text-ink/60">
+            Public read-only links to the whole event or a single album — no code needed. Toggle
+            downloads and set an optional expiry.
+          </p>
+          <form onSubmit={addShareLink} className="mt-4 flex flex-wrap items-center gap-3">
+            <select
+              value={shareAlbum}
+              onChange={(e) => setShareAlbum(e.target.value)}
+              className="rounded-xl border border-ink/15 bg-cream-light px-3 py-2.5 text-sm outline-none focus:border-ink/40"
+            >
+              <option value="">Whole event</option>
+              {albums.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={shareExpiry}
+              onChange={(e) => setShareExpiry(e.target.value)}
+              className="rounded-xl border border-ink/15 bg-cream-light px-3 py-2.5 text-sm outline-none focus:border-ink/40"
+            >
+              <option value="0">Never expires</option>
+              <option value="7">Expires in 7 days</option>
+              <option value="30">Expires in 30 days</option>
+            </select>
+            <label className="flex items-center gap-2 text-sm text-ink/70">
+              <input
+                type="checkbox"
+                checked={shareDownload}
+                onChange={(e) => setShareDownload(e.target.checked)}
+              />
+              Allow downloads
+            </label>
+            <PillButton type="submit">Create link</PillButton>
+          </form>
+
+          <ul className="mt-4 space-y-3">
+            {shareLinks.map((l) => (
+              <li key={l.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-cream px-4 py-3">
+                <Chip color="#8B6FD9">{l.albumName ?? 'Whole event'}</Chip>
+                <code className="flex-1 truncate text-xs text-ink/60">{l.url}</code>
+                <span className="text-[11px] text-ink/40">
+                  {l.allowDownload ? 'downloads on' : 'view only'}
+                  {l.expiresAt ? ` · expires ${new Date(l.expiresAt).toLocaleDateString()}` : ''}
+                </span>
+                <CopyButton value={l.url} />
+                <button
+                  onClick={() => removeShareLink(l.id)}
+                  className="text-xs font-medium text-coral hover:opacity-70"
+                  data-hover
+                >
+                  Revoke
+                </button>
+              </li>
+            ))}
+            {shareLinks.length === 0 && (
+              <li className="text-sm text-ink/50">No share links yet.</li>
             )}
           </ul>
         </Card>
