@@ -60,8 +60,9 @@ galleryRouter.get(
     const photos = await Promise.all(
       rows.map(async ({ storageKey, thumbStorageKey, ...p }) => ({
         ...p,
-        // Small preview for the grid; full-res only fetched on download.
+        // Small preview for the grid; full-res served to the lightbox on open.
         url: await presignGet(thumbStorageKey ?? storageKey),
+        fullUrl: await presignGet(storageKey),
       })),
     );
 
@@ -122,6 +123,7 @@ galleryRouter.post(
         filename: r.filename,
         distance: Number(r.distance),
         url: await presignGet(r.thumb_storage_key ?? r.storage_key),
+        fullUrl: await presignGet(r.storage_key),
       })),
     );
 

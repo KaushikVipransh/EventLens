@@ -66,12 +66,16 @@ export interface GalleryPhoto {
   filename: string;
   faceCount: number;
   url: string;
+  /** Full-resolution presigned URL, used by the lightbox on open. */
+  fullUrl: string;
 }
 export interface SearchMatch {
   id: string;
   filename: string;
   distance: number;
   url: string;
+  /** Full-resolution presigned URL, used by the lightbox on open. */
+  fullUrl: string;
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
