@@ -305,6 +305,13 @@ export const api = {
       { token },
     ),
 
+  /** Processing progress for the event (for the gallery's live refresh). */
+  attendeeStatus: (token: string) =>
+    request<{ pending: number; processing: number; processed: number; failed: number; total: number }>(
+      '/attendee/status',
+      { token },
+    ),
+
   /** Albums (with processed-photo counts) for the attendee's event. */
   attendeeAlbums: (token: string) =>
     request<{ albums: Album[] }>('/attendee/albums', { token }),

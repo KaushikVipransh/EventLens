@@ -57,6 +57,23 @@ galleryRouter.get(
   }),
 );
 
+/** Processing progress for the event (drives the gallery's live refresh). */
+galleryRouter.get(
+  '/attendee/status',
+  requireAttendee,
+  asyncHandler(async (req, res) => {
+    const { eventId } = req.attendee!;
+    const rows = await db
+      .select({ status: schema.photos.status, count: sql<number>`count(*)::int` })
+      .from(schema.photos)
+      .where(eq(schema.photos.eventId, eventId))
+      .groupBy(schema.photos.status);
+    const by = { pending: 0, processing: 0, processed: 0, failed: 0 };
+    for (const r of rows) by[r.status] = r.count;
+    res.json({ ...by, total: by.pending + by.processing + by.processed + by.failed });
+  }),
+);
+
 /** Paginated gallery of processed photos for the token's event. */
 galleryRouter.get(
   '/attendee/photos',

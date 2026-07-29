@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api,
   ApiError,
@@ -50,7 +50,39 @@ export default function AttendeeGalleryPage() {
   const [viewer, setViewer] = useState<{ items: LightboxItem[]; index: number } | null>(null);
   const [favs, setFavs] = useState<Set<string>>(new Set());
 
+  // Live processing progress → auto-refresh views as photos finish.
+  const [status, setStatus] = useState<{ processed: number; total: number; busy: boolean } | null>(
+    null,
+  );
+  const [refreshTick, setRefreshTick] = useState(0);
+  const lastProcessed = useRef(0);
+
   const favKey = `eventlens.fav.${code}`;
+
+  useEffect(() => {
+    if (!token) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const s = await api.attendeeStatus(token);
+        const busy = s.pending + s.processing > 0;
+        setStatus({ processed: s.processed, total: s.total, busy });
+        if (s.processed > lastProcessed.current) {
+          lastProcessed.current = s.processed;
+          setRefreshTick((t) => t + 1); // new photos ready → refresh the view
+        }
+        if (busy && !stopped) timer = setTimeout(poll, 6000);
+      } catch {
+        /* ignore transient errors */
+      }
+    };
+    poll();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [token]);
 
   useEffect(() => {
     api
@@ -102,7 +134,7 @@ export default function AttendeeGalleryPage() {
     );
   }
 
-  const shared = { token, code, favs, toggleFav, openLightbox, query, account };
+  const shared = { token, code, favs, toggleFav, openLightbox, query, account, refreshTick };
 
   return (
     <div className="min-h-screen bg-cream lg:flex">
@@ -162,7 +194,17 @@ export default function AttendeeGalleryPage() {
         </header>
 
         <div className="px-4 py-6 lg:px-8">
-          <h1 className="mb-6 text-h2 font-semibold lowercase">{eventName || 'Loading…'}</h1>
+          <h1 className="mb-4 text-h2 font-semibold lowercase">{eventName || 'Loading…'}</h1>
+
+          {status?.busy && (
+            <div className="mb-6 flex items-center gap-3 rounded-2xl bg-panel px-4 py-3 text-sm shadow-lift">
+              <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-ink/20 border-t-ink" />
+              <span className="text-ink/70">
+                Processing photos… <strong>{status.processed}</strong> of {status.total} ready
+                {' '}— new photos appear automatically.
+              </span>
+            </div>
+          )}
 
           {!token ? (
             <p className="text-ink/50">Loading…</p>
@@ -204,6 +246,8 @@ interface SharedProps {
   openLightbox: (items: MediaItem[], index: number) => void;
   query: string;
   account: AttendeeUser | null;
+  /** Bumped when new photos finish processing → views re-fetch. */
+  refreshTick: number;
 }
 
 const filterByQuery = <T extends { filename: string }>(items: T[], q: string): T[] =>
@@ -266,6 +310,7 @@ function PagedView({
   toggleFav,
   openLightbox,
   query,
+  refreshTick,
   timeline,
   mediaType,
   albumId,
@@ -281,11 +326,13 @@ function PagedView({
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const loadedRef = useRef(PAGE); // how many items are currently shown
 
   useEffect(() => {
     if (!token) return;
     let live = true;
     setLoading(true);
+    loadedRef.current = PAGE;
     api
       .galleryPhotos(token, 1, PAGE, { mediaType, albumId })
       .then(({ photos }) => {
@@ -300,12 +347,27 @@ function PagedView({
     };
   }, [token, mediaType, albumId]);
 
+  // Live refresh: when new photos finish processing, re-fetch the loaded window.
+  useEffect(() => {
+    if (!token || refreshTick === 0) return;
+    const limit = Math.min(loadedRef.current, 100);
+    api
+      .galleryPhotos(token, 1, limit, { mediaType, albumId })
+      .then(({ photos }) => {
+        setPhotos(photos);
+        setHasMore(photos.length === limit);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTick]);
+
   async function loadMore() {
     if (!token) return;
     const next = page + 1;
     const { photos: more } = await api.galleryPhotos(token, next, PAGE, { mediaType, albumId });
     setPhotos((prev) => [...prev, ...more]);
     setPage(next);
+    loadedRef.current = next * PAGE;
     setHasMore(more.length === PAGE);
   }
 
