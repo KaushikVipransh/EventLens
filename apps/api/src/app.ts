@@ -6,6 +6,7 @@ import { errorHandler, notFoundHandler } from './http.js';
 import { logger } from './logger.js';
 import { attendeeAuthRouter } from './routes/attendee-auth.js';
 import { authRouter } from './routes/auth.js';
+import { driveRouter } from './routes/drive.js';
 import { eventsRouter } from './routes/events.js';
 import { galleryRouter } from './routes/gallery.js';
 import { healthRouter } from './routes/health.js';
@@ -22,6 +23,7 @@ export function createApp(): Express {
   app.use(healthRouter);
   app.use(authRouter);
   app.use(attendeeAuthRouter);
+  app.use(driveRouter);
   app.use('/events', eventsRouter);
   app.use(uploadsRouter);
   app.use(galleryRouter);

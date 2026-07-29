@@ -9,6 +9,8 @@ export interface PhotoJobData {
   photoId: string;
   eventId: string;
   storageKey: string;
+  /** If set, the worker first downloads this Google Drive file into storageKey. */
+  driveFileId?: string;
 }
 
 /**

@@ -20,6 +20,15 @@ async function generateThumbnail(originalKey: string, bytes: Buffer): Promise<st
   return thumbKey;
 }
 
+/** Download a Google Drive file's bytes (public/shared) via the Drive API. */
+async function downloadDriveFile(fileId: string): Promise<Buffer> {
+  if (!config.GOOGLE_API_KEY) throw new Error('GOOGLE_API_KEY not set; cannot download Drive file');
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true&key=${config.GOOGLE_API_KEY}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Drive download failed for ${fileId}: ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
 /** Detect faces + embeddings in a single image buffer via the face service. */
 async function detectFaces(bytes: Buffer): Promise<DetectedFace[]> {
   const res = await fetch(`${config.FACE_SERVICE_URL}/detect-embed`, {
@@ -103,7 +112,14 @@ export async function processPhotoJob(data: PhotoJobData): Promise<void> {
     .from(schema.photos)
     .where(eq(schema.photos.id, data.photoId));
 
-  const bytes = await getObjectBytes(data.storageKey);
+  // "Import from Google Drive": pull the source file into our storage first.
+  let bytes: Buffer;
+  if (data.driveFileId) {
+    bytes = await downloadDriveFile(data.driveFileId);
+    await putObject(data.storageKey, bytes, row?.contentType ?? 'image/jpeg');
+  } else {
+    bytes = await getObjectBytes(data.storageKey);
+  }
 
   if (row && isVideoType(row.contentType)) {
     await processVideo(data, bytes);

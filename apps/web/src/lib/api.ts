@@ -279,6 +279,13 @@ export const api = {
       { method: 'POST', body: { code }, token },
     ),
 
+  /** Import a Google Drive folder link → ad-hoc event; returns its code. */
+  driveSession: (url: string) =>
+    request<{ code: string; token: string; name: string; count: number }>('/drive/session', {
+      method: 'POST',
+      body: { url },
+    }),
+
   // Attendee (per-event code)
   attendeeSession: (code: string) =>
     request<{ token: string; event: { id: string; name: string; date: string | null } }>(

@@ -35,6 +35,10 @@ const envSchema = z.object({
 
   FACE_SERVICE_URL: z.string().url().default('http://localhost:8000'),
   FACE_MATCH_THRESHOLD: z.coerce.number().default(0.42),
+
+  // Google Drive API key (Drive API enabled) — enables "import from Drive link".
+  // Optional: the feature returns a clear error if it's not configured.
+  GOOGLE_API_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
