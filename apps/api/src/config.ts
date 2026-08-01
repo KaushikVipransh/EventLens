@@ -36,9 +36,17 @@ const envSchema = z.object({
   FACE_SERVICE_URL: z.string().url().default('http://localhost:8000'),
   FACE_MATCH_THRESHOLD: z.coerce.number().default(0.42),
 
-  // Google Drive API key (Drive API enabled) — enables "import from Drive link".
-  // Optional: the feature returns a clear error if it's not configured.
+  // Google Drive API key (Drive API enabled) — legacy small-folder import path.
   GOOGLE_API_KEY: z.string().optional(),
+
+  // Google OAuth (Drive readonly) — enables reliable import of large/private
+  // folders. Optional: endpoints return a clear error if not configured.
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_OAUTH_REDIRECT_URI: z
+    .string()
+    .url()
+    .default('http://localhost:4000/drive/oauth/callback'),
 });
 
 const parsed = envSchema.safeParse(process.env);

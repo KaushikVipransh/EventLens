@@ -20,11 +20,48 @@ async function generateThumbnail(originalKey: string, bytes: Buffer): Promise<st
   return thumbKey;
 }
 
-/** Download a Google Drive file's bytes (public/shared) via the Drive API. */
-async function downloadDriveFile(fileId: string): Promise<Buffer> {
-  if (!config.GOOGLE_API_KEY) throw new Error('GOOGLE_API_KEY not set; cannot download Drive file');
-  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true&key=${config.GOOGLE_API_KEY}`;
-  const res = await fetch(url);
+// Per-event OAuth access-token cache (refreshed from the stored refresh token).
+const driveTokenCache = new Map<string, { token: string; exp: number }>();
+
+/** A valid Drive access token for the event's OAuth import, or null if none. */
+async function driveAccessToken(eventId: string): Promise<string | null> {
+  const cached = driveTokenCache.get(eventId);
+  if (cached && cached.exp > Date.now() + 60_000) return cached.token;
+
+  const row = await db.query.driveImports.findFirst({
+    where: eq(schema.driveImports.eventId, eventId),
+  });
+  if (!row) return null; // not an OAuth import → caller falls back to API key
+  if (!config.GOOGLE_CLIENT_ID || !config.GOOGLE_CLIENT_SECRET) {
+    throw new Error('Drive OAuth not configured on worker (GOOGLE_CLIENT_ID/SECRET)');
+  }
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: config.GOOGLE_CLIENT_ID,
+      client_secret: config.GOOGLE_CLIENT_SECRET,
+      refresh_token: row.refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+  if (!res.ok) throw new Error(`Drive token refresh failed: ${res.status}`);
+  const t = (await res.json()) as { access_token: string; expires_in: number };
+  driveTokenCache.set(eventId, { token: t.access_token, exp: Date.now() + t.expires_in * 1000 });
+  return t.access_token;
+}
+
+/** Download a Drive file's bytes — OAuth bearer (preferred) or API key. */
+async function downloadDriveFile(fileId: string, eventId: string): Promise<Buffer> {
+  const token = await driveAccessToken(eventId);
+  const base = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
+  if (!token && !config.GOOGLE_API_KEY) {
+    throw new Error('No Drive credentials configured (OAuth or API key)');
+  }
+  const res = await fetch(token ? base : `${base}&key=${config.GOOGLE_API_KEY}`, {
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+  });
   if (!res.ok) throw new Error(`Drive download failed for ${fileId}: ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }
@@ -115,7 +152,7 @@ export async function processPhotoJob(data: PhotoJobData): Promise<void> {
   // "Import from Google Drive": pull the source file into our storage first.
   let bytes: Buffer;
   if (data.driveFileId) {
-    bytes = await downloadDriveFile(data.driveFileId);
+    bytes = await downloadDriveFile(data.driveFileId, data.eventId);
     await putObject(data.storageKey, bytes, row?.contentType ?? 'image/jpeg');
   } else {
     bytes = await getObjectBytes(data.storageKey);
