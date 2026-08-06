@@ -26,11 +26,8 @@ const envSchema = z.object({
   // Set INGEST_MAX_EDGE=0 to disable and keep originals untouched.
   INGEST_MAX_EDGE: z.coerce.number().int().min(0).default(2560),
   INGEST_QUALITY: z.coerce.number().int().min(1).max(100).default(82),
-  // Google Drive API key — legacy small-folder import path.
+  // Google Drive API key — used to download files for "import from Drive".
   GOOGLE_API_KEY: z.string().optional(),
-  // Google OAuth client — used to refresh access tokens for authed downloads.
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

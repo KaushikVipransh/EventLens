@@ -1,8 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { api, ApiError, apiBase } from '@/lib/api';
+import { useState } from 'react';
+import { api, ApiError } from '@/lib/api';
 import { Card, GradientBlob, Nav, PillButton, Mark } from '@/components/ui';
 import { Reveal } from '@/components/motion';
 
@@ -15,15 +15,6 @@ export default function JoinPage() {
   const [driveUrl, setDriveUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  // Surface an error handed back by the OAuth callback (?drive_error=…).
-  useEffect(() => {
-    const err = new URLSearchParams(window.location.search).get('drive_error');
-    if (err) {
-      setMode('drive');
-      setError(err);
-    }
-  }, []);
 
   async function submitCode(e: React.FormEvent) {
     e.preventDefault();
@@ -40,13 +31,18 @@ export default function JoinPage() {
     }
   }
 
-  function submitDrive(e: React.FormEvent) {
+  async function submitDrive(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    // Full-page redirect into Google's consent screen; the callback creates the
-    // import and sends the browser on to /e/[code].
-    window.location.href = `${apiBase}/drive/oauth/start?url=${encodeURIComponent(driveUrl.trim())}`;
+    try {
+      const { code } = await api.driveSession(driveUrl.trim());
+      router.push(`/e/${code}`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not import that folder');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -97,9 +93,8 @@ export default function JoinPage() {
                   className="w-full rounded-xl border border-ink/15 bg-cream-light px-4 py-3 text-sm outline-none focus:border-ink/40"
                 />
                 <p className="text-left text-xs text-ink/50">
-                  Paste a Drive <strong>folder</strong> link. You&apos;ll sign in with Google
-                  (read-only) so we can import the photos and find faces — works with your own
-                  private folders too.
+                  Paste a Drive <strong>folder</strong> link shared as “Anyone with the link can
+                  view.” We import the photos and find faces — same as an event.
                 </p>
                 {error && <p className="text-sm text-coral">{error}</p>}
                 <PillButton
@@ -107,7 +102,7 @@ export default function JoinPage() {
                   disabled={busy || driveUrl.trim().length < 10}
                   className="w-full"
                 >
-                  {busy ? 'Redirecting…' : 'Connect Google Drive & import'}
+                  {busy ? 'Importing…' : 'Import & find photos'}
                 </PillButton>
               </form>
             )}
